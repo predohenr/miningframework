@@ -1,4 +1,4 @@
-FROM amazoncorretto:17 AS build
+FROM amazoncorretto:8 as build
 
 WORKDIR /usr/src/miningframework
 
@@ -6,7 +6,7 @@ COPY . .
 
 RUN ./gradlew installDist
 
-FROM amazoncorretto:17
+FROM amazoncorretto:8
 
 WORKDIR /usr/src/miningframework
 

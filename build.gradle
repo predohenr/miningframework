@@ -6,7 +6,9 @@ plugins {
 group = 'app'
 version = '1.0.0'
 
-mainClassName = System.getProperty("mainClass") ?: "app.Main"
+application {
+	mainClass = System.getProperty("mainClass") ?: "app.Main"
+}
 
 ext {
 	groovyVersion = '3.0.23'
@@ -27,12 +29,6 @@ sourceSets {
 			srcDirs = ['src/test']
 			exclude '**/output/**/*.java'
 		}
-	}
-}
-
-java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
 	}
 }
 
