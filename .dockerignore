@@ -1,0 +1,15 @@
+build/
+.gradle/
+
+.idea/
+target/
+
+*.log
+*.lock
+
+*.jar
+
+input/
+mergeAnalysisOutput/
+cloned_repos/
+output_aux/

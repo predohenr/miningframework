@@ -1,0 +1,28 @@
+services:
+  mining_worker:
+    build: .
+
+    volumes:
+      - ${PWD}/input:/usr/local/framework/input
+      - ${PWD}/mergeAnalysisOutput:/usr/local/framework/mergeAnalysisOutput
+      - ${PWD}/clonedRepositories:/usr/local/framework/clonedRepositories
+      - ${PWD}/output:/usr/local/framework/output
+
+    user: "miner"
+
+    command: 
+      [
+        "-i", "injectors.MergirafSemiModule",
+        "-t", "4", 
+        "-k",
+        "-r", "42",
+        "-m", "1",
+        "input/topProjectsJava.csv",
+        "mergeAnalysisOutput"
+      ]
+
+    profiles: ["run"]
+
+    container_name: mining-framework
+
+    restart: "no"
