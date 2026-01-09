@@ -1,14 +1,17 @@
+version: '3.8'
+
 services:
   mining_worker:
     build: .
+    image: mining-framework:latest
+    container_name: mining-framework
 
     volumes:
-      - ${PWD}/input:/usr/local/framework/input
-      - ${PWD}/mergeAnalysisOutput:/usr/local/framework/mergeAnalysisOutput
-      - ${PWD}/clonedRepositories:/usr/local/framework/clonedRepositories
-      - ${PWD}/output:/usr/local/framework/output
-
-    user: "miner"
+      - ./input:/usr/src/miningframework/input
+      - ./dependencies:/usr/src/miningframework/dependencies
+      - ./mergeAnalysisOutput:/usr/src/miningframework/mergeAnalysisOutput
+      - ./clonedRepositories:/usr/src/miningframework/clonedRepositories
+      - ./output:/usr/src/miningframework/output
 
     command: 
       [
@@ -16,13 +19,9 @@ services:
         "-t", "4", 
         "-k",
         "-r", "42",
-        "-m", "1",
+        "-m", "200",
         "input/topProjectsJava.csv",
         "mergeAnalysisOutput"
       ]
-
-    profiles: ["run"]
-
-    container_name: mining-framework
 
     restart: "no"
