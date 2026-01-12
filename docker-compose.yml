@@ -3,8 +3,8 @@ version: '3.8'
 services:
   mining_worker:
     build: .
-    image: mining-framework:latest
-    container_name: mining-framework
+    image: phls2_mining-mergetools:latest
+    container_name: phls2_mining-mergetools
 
     volumes:
       - ./input:/usr/src/miningframework/input
