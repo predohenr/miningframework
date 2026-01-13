@@ -16,11 +16,12 @@ services:
     command: 
       [
         "-i", "injectors.MergirafSemiModule",
-        "-t", "4", 
+        "-t", "1", 
+        "-e", ".js",
         "-k",
         "-r", "42",
         "-m", "200",
-        "input/topProjectsJava.csv",
+        "input/topProjectsJS.csv",
         "mergeAnalysisOutput"
       ]
 
