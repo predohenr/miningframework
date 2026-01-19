@@ -1,10 +1,11 @@
 import os
 import csv
+import shutil
 
 # configuration
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
-ROOT_DIR = os.path.join(project_root, 'mergeAnalysisOutput')
+ROOT_DIR = os.path.join(project_root, 'mergeAnalysisOutput') #results folder
 OUTPUT_CSV_NAME = 'failedScenarios.csv'
 
 def check_scenario(scenario_path, relative_path, target_filename):
@@ -65,6 +66,8 @@ def main():
     output_csv_name = f"failedScenarios_{user_ext}.csv"
     output_csv_path = os.path.join(ROOT_DIR, output_csv_name)
 
+    scenarios_output_dir = os.path.join(ROOT_DIR, f"scenarios_failed_{user_ext}")
+
     if not os.path.exists(ROOT_DIR):
         print(f"CRITICAL ERROR: Data folder not found in: {ROOT_DIR}\n")
         return
@@ -90,6 +93,9 @@ def main():
     
     for root, dirs, files in os.walk(ROOT_DIR):
         # search for tool folders
+        if f"scenarios_failed_{user_ext}" in root:
+            continue
+
         if 'mergiraf' in dirs and ('mergiraf-semi-c' in dirs or 'mergiraf-semi-sc' in dirs):
             
             found_scenarios += 1
@@ -118,6 +124,13 @@ def main():
                     dict_writer = csv.DictWriter(f, fieldnames=columns)
                     dict_writer.writerows(issues)
                 print(f"------> [!] Failure registered in commit {issues[0]['commit'][:8]}...")
+
+                dest_dir = os.path.join(scenarios_output_dir, relative_path)
+                try:
+                    shutil.copytree(root, dest_dir, dirs_exist_ok=True)
+                    print(f"        [!] FALHA - Cenário copiado para análise.")
+                except Exception as e:
+                    print(f"        [X] Erro ao copiar pasta: {e}")
 
     print("-" * 50)
     print(f"Processo finalizado!")
