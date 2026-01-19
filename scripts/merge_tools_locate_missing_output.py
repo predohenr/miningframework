@@ -5,13 +5,12 @@ import csv
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 ROOT_DIR = os.path.join(project_root, 'mergeAnalysisOutput')
-OUTPUT_FILENAME = 'merge.java'
 OUTPUT_CSV_NAME = 'failedScenarios.csv'
 
-def check_scenario(scenario_path, relative_path):
-    std_path = os.path.join(scenario_path, 'mergiraf', OUTPUT_FILENAME)
-    semi_c_path = os.path.join(scenario_path, 'mergiraf-semi-c', OUTPUT_FILENAME)
-    semi_sc_path = os.path.join(scenario_path, 'mergiraf-semi-sc', OUTPUT_FILENAME)
+def check_scenario(scenario_path, relative_path, target_filename):
+    std_path = os.path.join(scenario_path, 'mergiraf', target_filename)
+    semi_c_path = os.path.join(scenario_path, 'mergiraf-semi-c', target_filename)
+    semi_sc_path = os.path.join(scenario_path, 'mergiraf-semi-sc', target_filename)
 
     # true if file exists and has content
     std_ok = os.path.exists(std_path) and os.path.getsize(std_path) > 0
@@ -51,6 +50,21 @@ def check_scenario(scenario_path, relative_path):
     return [issue]
 
 def main():
+    print("-" * 50)
+    user_ext = input("Type file extension (eg: java, js, ts): ").strip().lower()
+    
+    if user_ext.startswith('.'):
+        user_ext = user_ext[1:]
+    
+    if not user_ext:
+        print("No extension typed. using default: 'java'.")
+        user_ext = "java"
+
+    target_filename = f"merge.{user_ext}"
+    
+    output_csv_name = f"failedScenarios_{user_ext}.csv"
+    output_csv_path = os.path.join(ROOT_DIR, output_csv_name)
+
     if not os.path.exists(ROOT_DIR):
         print(f"CRITICAL ERROR: Data folder not found in: {ROOT_DIR}\n")
         return
@@ -96,7 +110,7 @@ def main():
                     current_commit = commit_name
 
 
-            issues = check_scenario(root, relative_path)
+            issues = check_scenario(root, relative_path, target_filename)
 
             if issues:
                 problematic_scenarios += 1
