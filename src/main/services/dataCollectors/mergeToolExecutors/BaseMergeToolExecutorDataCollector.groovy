@@ -25,6 +25,13 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
 
     protected static PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS = 1
     protected static TIMEOUT_IN_HOURS = 1
+    
+    protected final String extension
+
+    BaseMergeToolExecutorDataCollector(String extension) {
+        String raw = extension ?: ".java"
+        this.extension = raw.startsWith(".") ? raw : "." + raw
+    }
 
     @Override
     void collectData(Project project, MergeCommit mergeCommit) {
@@ -53,7 +60,7 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
     MergeExecutionSummary runMergeForFile(Path file) {
         LOG.trace("Starting execution of tool ${getToolName()} in ${file}")
         List<Long> executionTimes = new ArrayList<>()
-        def outputFilePath = file.resolve("merge." + getToolName().toLowerCase() + ".java")
+        def outputFilePath = file.resolve("merge." + getToolName().toLowerCase() + this.extension)
 
         for (int i = 0; i < PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS; i++) {
             LOG.trace("Starting execution ${i + 1} of ${PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS}")

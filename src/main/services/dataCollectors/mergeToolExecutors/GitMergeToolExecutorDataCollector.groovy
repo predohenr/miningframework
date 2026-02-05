@@ -1,32 +1,48 @@
 package services.dataCollectors.mergeToolExecutors
 
+import interfaces.DataCollector
+import project.MergeCommit
+import project.Project
+import services.dataCollectors.S3MMergesCollector.MergeScenarioCollector
+import java.nio.file.Files
 import java.nio.file.Path
-import util.ProcessRunner
+import java.nio.file.StandardCopyOption
 
-class GitMergeExecutor extends BaseMergeToolExecutorDataCollector {
+class GitMergeToolExecutorDataCollector implements DataCollector {
 
-    @Override
-    protected List<String> getArgumentsForTool(Path file, Path outputFile) {
-        return Arrays.asList("git", 
-                "merge-file",
-                "-p", 
-                file.resolve("left.java").toAbsolutePath().toString(),
-                file.resolve("base.java").toAbsolutePath().toString(),
-                file.resolve("right.java").toAbsolutePath().toString())
+    private String extension
+
+    GitMergeToolExecutorDataCollector(String extension) {
+        this.extension = extension
     }
 
     @Override
-    protected void executeTool(Path file, Path outputFile) {
-        def processBuilder = new ProcessBuilder(getArgumentsForTool(file, outputFile))
-        
-        processBuilder.redirectOutput(outputFile.toFile())
-        
-        def process = processBuilder.start()
-        process.waitFor()
-    }
+    void collectData(Project project, MergeCommit mergeCommit) {
+        List<Path> scenarios = MergeScenarioCollector.collectNonFastForwardMergeScenarios(project, mergeCommit)
 
-    @Override
-    String getToolName() {
-        return "diff3"
+        scenarios.parallelStream().forEach({ Path scenario ->
+            try {
+                Path basePath = scenario.resolve("base" + extension)
+                Path leftPath = scenario.resolve("left" + extension)
+                Path rightPath = scenario.resolve("right" + extension)
+                Path outputPath = scenario.resolve("merge.diff3" + extension)
+
+                // merge is a copy of left for git merge-file to overwrite it
+                Files.copy(leftPath, outputPath, StandardCopyOption.REPLACE_EXISTING)
+
+                ProcessBuilder pb = new ProcessBuilder("git", "merge-file", 
+                    outputPath.toString(), 
+                    basePath.toString(), 
+                    rightPath.toString()
+                )
+                
+                pb.directory(scenario.toFile())
+                Process p = pb.start()
+                p.waitFor()
+
+            } catch (Exception e) {
+                e.printStackTrace()
+            }
+        })
     }
 }
