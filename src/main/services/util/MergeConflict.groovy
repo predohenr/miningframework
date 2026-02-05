@@ -32,35 +32,49 @@ class MergeConflict {
 
     @Override
     boolean equals(Object o) {
-        return StringUtils.deleteWhitespace(left) == StringUtils.deleteWhitespace(((MergeConflict) o).left)
-                && StringUtils.deleteWhitespace(right) == StringUtils.deleteWhitespace(((MergeConflict) o).right)
+        if (!(o instanceof MergeConflict)) return false
+        return StringUtils.deleteWhitespace(left) == StringUtils.deleteWhitespace(((MergeConflict) o).left) &&
+                StringUtils.deleteWhitespace(right) == StringUtils.deleteWhitespace(((MergeConflict) o).right)
     }
 
-    /**
-     * @param file
-     * @return the set of merge conflicts present in the given file
-     */
+    boolean equalsOrSubstring(MergeConflict other) {
+        String cleanThisLeft = StringUtils.deleteWhitespace(this.left)
+        String cleanOtherLeft = StringUtils.deleteWhitespace(other.left)
+        
+        String cleanThisRight = StringUtils.deleteWhitespace(this.right)
+        String cleanOtherRight = StringUtils.deleteWhitespace(other.right)
+
+        boolean leftMatch = cleanThisLeft.contains(cleanOtherLeft) || cleanOtherLeft.contains(cleanThisLeft)
+        
+        boolean rightMatch = cleanThisRight.contains(cleanOtherRight) || cleanOtherRight.contains(cleanThisRight)
+
+        return leftMatch && rightMatch
+    }
+
     static Set<MergeConflict> extractMergeConflicts(Path file) {
         Set<MergeConflict> mergeConflicts = new HashSet<MergeConflict>()
 
         StringBuilder leftConflictingContent = new StringBuilder()
         StringBuilder rightConflictingContent = new StringBuilder()
 
-        ConflictArea conflictArea
-        conflictArea = ConflictArea.None
+        ConflictArea conflictArea = ConflictArea.None
 
         Iterator<String> mergeCodeLines = FileUtils.readLines(file.toFile(), Charset.defaultCharset()).iterator()
         while (mergeCodeLines.hasNext()) {
             String line = mergeCodeLines.next()
+            String cleanLine = StringUtils.deleteWhitespace(line)
 
-            /* See the following conditionals as a state machine. */
-            if (StringUtils.deleteWhitespace(line).startsWith(MINE_CONFLICT_MARKER) && conflictArea == ConflictArea.None) {
+            if (cleanLine.startsWith(MINE_CONFLICT_MARKER) && conflictArea == ConflictArea.None) {
                 conflictArea = ConflictArea.Left
-            } else if (StringUtils.deleteWhitespace(line).startsWith(CHANGE_CONFLICT_MARKER) && conflictArea == ConflictArea.Left) {
+            } else if (cleanLine.startsWith(CHANGE_CONFLICT_MARKER) && conflictArea == ConflictArea.Left) {
                 conflictArea = ConflictArea.Right
-            } else if (StringUtils.deleteWhitespace(line).startsWith(YOURS_CONFLICT_MARKER) && conflictArea == ConflictArea.Right) {
+            } else if (cleanLine.startsWith(YOURS_CONFLICT_MARKER) && conflictArea == ConflictArea.Right) {
                 mergeConflicts.add(new MergeConflict(leftConflictingContent.toString(), rightConflictingContent.toString()))
                 conflictArea = ConflictArea.None
+                
+                leftConflictingContent.setLength(0)
+                rightConflictingContent.setLength(0)
+
             } else {
                 switch (conflictArea) {
                     case ConflictArea.Left:
@@ -85,13 +99,15 @@ class MergeConflict {
 
         while (mergeCodeLines.hasNext()) {
             String line = mergeCodeLines.next()
-            if (StringUtils.deleteWhitespace(line).startsWith(MINE_CONFLICT_MARKER)) {
+            String cleanLine = StringUtils.deleteWhitespace(line)
+
+            if (cleanLine.startsWith(MINE_CONFLICT_MARKER)) {
                 conflictArea = ConflictArea.Left
-            } else if (StringUtils.deleteWhitespace(line).startsWith(BASE_CONFLICT_MARKER)) {
+            } else if (cleanLine.startsWith(BASE_CONFLICT_MARKER)) {
                 conflictArea = ConflictArea.Base
-            } else if (StringUtils.deleteWhitespace(line).startsWith(CHANGE_CONFLICT_MARKER)) {
+            } else if (cleanLine.startsWith(CHANGE_CONFLICT_MARKER)) {
                 conflictArea = ConflictArea.Right
-            } else if (StringUtils.deleteWhitespace(line).startsWith(YOURS_CONFLICT_MARKER)) {
+            } else if (cleanLine.startsWith(YOURS_CONFLICT_MARKER)) {
                 conflictArea = ConflictArea.None
             }
 
@@ -114,5 +130,4 @@ class MergeConflict {
         }
         return conflictCount
     }
-
 }
