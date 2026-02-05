@@ -1,27 +1,31 @@
 package injectors
 
+import app.MiningFramework
 import com.google.inject.AbstractModule
 import com.google.inject.multibindings.Multibinder
 import interfaces.CommitFilter
 import interfaces.DataCollector
 import interfaces.OutputProcessor
 import interfaces.ProjectProcessor
+import project.Project
+import project.MergeCommit
 import services.commitFilters.MutuallyModifiedFilesCommitFilter
 import services.dataCollectors.buildRequester.RequestBuildForRevisionWithFilesDataCollector
 import services.dataCollectors.common.CompareScenarioMergeConflictsDataCollector
+import services.dataCollectors.common.ConditionalBuildDataCollector
 import services.dataCollectors.common.RunDataCollectorsInParallel
+import services.dataCollectors.common.RunDataCollectorsSequentially
 import services.dataCollectors.common.SyntacticallyCompareScenarioFilesDataCollector
-import services.dataCollectors.fileSyntacticNormalization.FormatFileSyntacticNormalizationDataCollector
-import services.dataCollectors.fileSyntacticNormalization.JDimeFileSyntacticNormalizationDataCollector
-import services.dataCollectors.fileSyntacticNormalization.SporkFileSyntacticNormalizationDataCollector
-import services.dataCollectors.mergeToolExecutors.JDimeMergeToolExecutorDataCollector
-import services.dataCollectors.mergeToolExecutors.LastMergeMergeToolExecutorDataCollector
-import services.dataCollectors.mergeToolExecutors.MergirafMergeToolExecutorDataCollector
-import services.dataCollectors.mergeToolExecutors.SporkMergeToolExecutorDataCollector
+import services.dataCollectors.fileSyntacticNormalization.GenericTextNormalizerDataCollector
+import services.dataCollectors.mergeToolExecutors.*
 import services.outputProcessors.EmptyOutputProcessor
 import services.projectProcessors.DummyProjectProcessor
 
 class GenericMergeModule extends AbstractModule {
+
+    GenericMergeModule() {
+    }
+
     @Override
     protected void configure() {
         Multibinder<ProjectProcessor> projectProcessorBinder = Multibinder.newSetBinder(binder(), ProjectProcessor.class)
@@ -29,54 +33,120 @@ class GenericMergeModule extends AbstractModule {
 
         Multibinder<DataCollector> dataCollectorBinder = Multibinder.newSetBinder(binder(), DataCollector.class)
 
-        // Run the merge tools on the scenarios
-        dataCollectorBinder.addBinding().to(JDimeMergeToolExecutorDataCollector.class)
-        dataCollectorBinder.addBinding().to(LastMergeMergeToolExecutorDataCollector.class)
-        dataCollectorBinder.addBinding().to(SporkMergeToolExecutorDataCollector.class)
-        dataCollectorBinder.addBinding().to(MergirafMergeToolExecutorDataCollector.class)
+        dataCollectorBinder.addBinding().toInstance(new LazyCollector({
+            def exts = getExtensions()
+            
+            return new RunDataCollectorsInParallel([
+                new MergirafMergeToolExecutorDataCollector(exts.file),
+                new MergirafSemiCMergeToolExecutorDataCollector(exts.file),
+                new MergirafSemiSCMergeToolExecutorDataCollector(exts.file),
+                new GitMergeToolExecutorDataCollector(exts.file) 
+            ])
+        }))
 
-        // Run, in parallel, normalizations on resulting files
-        dataCollectorBinder.addBinding().toInstance(new RunDataCollectorsInParallel([
-                new JDimeFileSyntacticNormalizationDataCollector("merge.java", "merge.jdime_normalized.java"),
-                new JDimeFileSyntacticNormalizationDataCollector("merge.last_merge.java", "merge.last_merge.jdime_normalized.java"),
-                new SporkFileSyntacticNormalizationDataCollector("merge.java", "merge.spork_normalized.java"),
-                new SporkFileSyntacticNormalizationDataCollector("merge.spork.java", "merge.spork.spork_normalized.java"),
-                new SporkFileSyntacticNormalizationDataCollector("merge.mergiraf.java", "merge.mergiraf.spork_normalized.java"),
-        ]))
+        dataCollectorBinder.addBinding().toInstance(new LazyCollector({
+            def exts = getExtensions()
+            return new RunDataCollectorsInParallel([
+                new GenericTextNormalizerDataCollector("merge.mergiraf${exts.file}", "merge.mergiraf.format_normalized${exts.file}", exts.clean),
+                new GenericTextNormalizerDataCollector("merge.mergiraf_semi_c${exts.file}", "merge.mergiraf_semi_c.format_normalized${exts.file}", exts.clean),
+                new GenericTextNormalizerDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf_semi_sc.format_normalized${exts.file}", exts.clean),
+                new GenericTextNormalizerDataCollector("merge.diff3${exts.file}", "merge.diff3.format_normalized${exts.file}", exts.clean),
+                new GenericTextNormalizerDataCollector("merge${exts.file}", "merge.format_normalized${exts.file}", exts.clean)
+            ])
+        }))
 
-        // Run, in parallel, syntactical comparisons between files and textual comparison between commits
-        dataCollectorBinder.addBinding().toInstance(new RunDataCollectorsInParallel([
-                // Syntactic comparison with merge commits
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.java", "merge.last_merge.java"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.jdime_normalized.java", "merge.jdime.java"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.spork_normalized.java", "merge.spork.spork_normalized.java"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.java", "merge.mergiraf.java"),
+        dataCollectorBinder.addBinding().toInstance(new LazyCollector({
+            def exts = getExtensions()
+            return new RunDataCollectorsInParallel([
+                // tools vs diff3
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
+                
+                // semi vs structured
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.mergiraf.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.mergiraf.format_normalized${exts.file}"),
+                
+                // semi vs semi+
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.mergiraf_semi_c.format_normalized${exts.file}"),
 
-                // Syntactic comparison between tools themselves
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.jdime.java", "merge.last_merge.jdime_normalized.java"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf.spork_normalized.java", "merge.spork.spork_normalized.java"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf.java", "merge.last_merge.java"),
+                // tools vs repo merge
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.diff3.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
 
-                // Conflicts comparison between tools themselves
-                new CompareScenarioMergeConflictsDataCollector("merge.jdime.java", "merge.last_merge.java"),
-                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf.java", "merge.spork.java"),
-                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf.java", "merge.last_merge.java"),
-        ]))
+                // conflicts tools vs diff3
+                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf${exts.file}", "merge.diff3${exts.file}"),
+                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_c${exts.file}", "merge.diff3${exts.file}"),
+                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.diff3${exts.file}"),
 
-        dataCollectorBinder.addBinding().toInstance(new RunDataCollectorsInParallel([new FormatFileSyntacticNormalizationDataCollector("merge.last_merge.java", "merge.last_merge.format_normalized.java"),
-                                                                                     new FormatFileSyntacticNormalizationDataCollector("merge.mergiraf.java", "merge.mergiraf.format_normalized.java")]))
+                // conflicts semi vs structured
+                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_c${exts.file}", "merge.mergiraf${exts.file}"),
+                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf${exts.file}"),
 
-        dataCollectorBinder.addBinding().toInstance(new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf.format_normalized.java", "merge.last_merge.format_normalized.java"))
+                //semi vs semi+
+                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf_semi_c${exts.file}")
+            ])
+        }))
 
+        dataCollectorBinder.addBinding().toInstance(new LazyCollector({
+            def exts = getExtensions()
+            return new RunDataCollectorsSequentially([
+                new ConditionalBuildDataCollector(
+                    "merge.mergiraf.format_normalized${exts.file}",
+                    "merge.format_normalized${exts.file}",
+                    new RequestBuildForRevisionWithFilesDataCollector("merge.mergiraf${exts.file}", exts.clean)
+                ),
+                
+                new ConditionalBuildDataCollector(
+                    "merge.mergiraf_semi_c.format_normalized${exts.file}",
+                    "merge.format_normalized${exts.file}",
+                    new RequestBuildForRevisionWithFilesDataCollector("merge.mergiraf_semi_c${exts.file}", exts.clean)
+                ),
 
-        dataCollectorBinder.addBinding().toInstance(new RequestBuildForRevisionWithFilesDataCollector("merge.last_merge.java"))
-        dataCollectorBinder.addBinding().toInstance(new RequestBuildForRevisionWithFilesDataCollector("merge.jdime.java"))
-        dataCollectorBinder.addBinding().toInstance(new RequestBuildForRevisionWithFilesDataCollector("merge.mergiraf.java"))
-        dataCollectorBinder.addBinding().toInstance(new RequestBuildForRevisionWithFilesDataCollector("merge.spork.java"))
+                new ConditionalBuildDataCollector(
+                    "merge.mergiraf_semi_sc.format_normalized${exts.file}",
+                    "merge.format_normalized${exts.file}",
+                    new RequestBuildForRevisionWithFilesDataCollector("merge.mergiraf_semi_sc${exts.file}", exts.clean)
+                ),
+
+                new ConditionalBuildDataCollector(
+                    "merge.diff3.format_normalized${exts.file}",
+                    "merge.format_normalized${exts.file}",
+                    new RequestBuildForRevisionWithFilesDataCollector("merge.diff3${exts.file}", exts.clean)
+                )
+            ])
+        }))
 
         Multibinder<OutputProcessor> outputProcessorBinder = Multibinder.newSetBinder(binder(), OutputProcessor.class)
         outputProcessorBinder.addBinding().to(EmptyOutputProcessor.class)
 
         bind(CommitFilter.class).to(MutuallyModifiedFilesCommitFilter.class)
+    }
+
+    private static Map<String, String> getExtensions() {
+        def args = MiningFramework.arguments
+        String rawExtension = args.getFileExtension() ?: "java"
+        String fileExt = rawExtension.startsWith(".") ? rawExtension : "." + rawExtension
+        String cleanExt = rawExtension.replace(".", "")
+        return [file: fileExt, clean: cleanExt]
+    }
+
+    static class LazyCollector implements DataCollector {
+        private final Closure<DataCollector> factory
+        private DataCollector delegate
+
+        LazyCollector(Closure<DataCollector> factory) {
+            this.factory = factory
+        }
+
+        @Override
+        void collectData(Project project, MergeCommit mergeCommit) {
+            if (delegate == null) {
+                delegate = factory.call() 
+            }
+            delegate.collectData(project, mergeCommit)
+        }
     }
 }
