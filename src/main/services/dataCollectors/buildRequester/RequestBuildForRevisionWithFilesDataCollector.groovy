@@ -80,7 +80,7 @@ class RequestBuildForRevisionWithFilesDataCollector implements DataCollector {
                             destFile.getParentFile().mkdirs()
                         }
 
-                        LOG.info("Copying file ${file.resolve(this.fileName)} to ${destination}")
+                        LOG.debug("Copying file ${file.resolve(this.fileName)} to ${destination}")
                         
                         Files.copy(file.resolve(this.fileName), destination, StandardCopyOption.REPLACE_EXISTING)
                         

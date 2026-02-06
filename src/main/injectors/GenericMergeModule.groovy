@@ -10,9 +10,8 @@ import interfaces.ProjectProcessor
 import project.Project
 import project.MergeCommit
 import services.commitFilters.MutuallyModifiedFilesCommitFilter
-import services.dataCollectors.buildRequester.RequestBuildForRevisionWithFilesDataCollector
 import services.dataCollectors.common.CompareScenarioMergeConflictsDataCollector
-import services.dataCollectors.common.ConditionalBuildDataCollector
+import services.dataCollectors.common.ConsensusBuildDataCollector
 import services.dataCollectors.common.RunDataCollectorsInParallel
 import services.dataCollectors.common.RunDataCollectorsSequentially
 import services.dataCollectors.common.SyntacticallyCompareScenarioFilesDataCollector
@@ -85,38 +84,15 @@ class GenericMergeModule extends AbstractModule {
                 new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_c${exts.file}", "merge.mergiraf${exts.file}"),
                 new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf${exts.file}"),
 
-                //semi vs semi+
+                // conflicts semi vs semi+
                 new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf_semi_c${exts.file}")
             ])
         }))
 
+        // build
         dataCollectorBinder.addBinding().toInstance(new LazyCollector({
             def exts = getExtensions()
-            return new RunDataCollectorsSequentially([
-                new ConditionalBuildDataCollector(
-                    "merge.mergiraf.format_normalized${exts.file}",
-                    "merge.format_normalized${exts.file}",
-                    new RequestBuildForRevisionWithFilesDataCollector("merge.mergiraf${exts.file}", exts.clean)
-                ),
-                
-                new ConditionalBuildDataCollector(
-                    "merge.mergiraf_semi_c.format_normalized${exts.file}",
-                    "merge.format_normalized${exts.file}",
-                    new RequestBuildForRevisionWithFilesDataCollector("merge.mergiraf_semi_c${exts.file}", exts.clean)
-                ),
-
-                new ConditionalBuildDataCollector(
-                    "merge.mergiraf_semi_sc.format_normalized${exts.file}",
-                    "merge.format_normalized${exts.file}",
-                    new RequestBuildForRevisionWithFilesDataCollector("merge.mergiraf_semi_sc${exts.file}", exts.clean)
-                ),
-
-                new ConditionalBuildDataCollector(
-                    "merge.diff3.format_normalized${exts.file}",
-                    "merge.format_normalized${exts.file}",
-                    new RequestBuildForRevisionWithFilesDataCollector("merge.diff3${exts.file}", exts.clean)
-                )
-            ])
+            return new ConsensusBuildDataCollector(exts.file, exts.clean)
         }))
 
         Multibinder<OutputProcessor> outputProcessorBinder = Multibinder.newSetBinder(binder(), OutputProcessor.class)

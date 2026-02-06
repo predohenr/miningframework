@@ -6,12 +6,13 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 class GithubActionsHelper {
 
     static void createGitHubActionsFile(Project project, String extension) {
         Path projectPath = Paths.get(project.getPath())
-        
         String cleanExt = extension.replace(".", "").toLowerCase()
         String buildSteps = detectBuildSteps(projectPath, cleanExt)
 
@@ -38,17 +39,14 @@ ${buildSteps}
     }
 
     private static String detectBuildSteps(Path root, String ext) {    
+        if (ext == "py") return getPythonSteps()
         
-        if (ext == "py") {
-            return getPythonSteps()
-        }
-
         if (ext == "java") {
             if (Files.exists(root.resolve("pom.xml"))) {
                 return getMavenSteps()
             }
             if (Files.exists(root.resolve("build.gradle")) || Files.exists(root.resolve("build.gradle.kts"))) {
-                return getGradleSteps()
+                return getGradleSteps(root)
             }
             return """
             - name: Set up JDK 17
@@ -66,7 +64,6 @@ ${buildSteps}
                 boolean usesYarn = Files.exists(root.resolve("yarn.lock"))
                 return getNodeSteps(usesYarn)
             }
-            // Fallback: Syntax Check
             return """
             - name: Set up Node.js
               uses: actions/setup-node@v3
@@ -77,13 +74,8 @@ ${buildSteps}
             """
         }
         
-        if (ext == "go") {
-             return getGoSteps()
-        }
-
-        if (ext == "rs") {
-             return getRustSteps()
-        }
+        if (ext == "go") return getGoSteps()
+        if (ext == "rs") return getRustSteps()
 
         return """
             - name: Unknown Project Type
@@ -98,15 +90,13 @@ ${buildSteps}
               with:
                 python-version: '3.10'
                 cache: 'pip'
-            
             - name: Install dependencies
               run: |
                 python -m pip install --upgrade pip
                 pip install pytest
                 if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
                 if [ -f pyproject.toml ]; then pip install .; fi
-            
-            - name: Run Tests (Retry 3x)
+            - name: Run Tests
               uses: nick-fields/retry@v3
               with:
                 timeout_minutes: 20
@@ -123,22 +113,23 @@ ${buildSteps}
                 java-version: '11'
                 distribution: 'temurin'
                 cache: maven
-            
             - name: Run Maven Tests
               uses: nick-fields/retry@v3
               with:
                 timeout_minutes: 30
                 max_attempts: 3
-                command: mvn -B test -DfailIfNoTests=false
+                command: mvn -B test
         """
     }
 
-    private static String getGradleSteps() {
+    private static String getGradleSteps(Path root) {
+        String javaVersion = detectJavaVersionForGradle(root)
+        
         return """
-            - name: Set up JDK 11
+            - name: Set up JDK ${javaVersion}
               uses: actions/setup-java@v3
               with:
-                java-version: '11'
+                java-version: '${javaVersion}'
                 distribution: 'temurin'
                 cache: gradle
             
@@ -154,6 +145,29 @@ ${buildSteps}
         """
     }
 
+    private static String detectJavaVersionForGradle(Path root) {
+        try {
+            Path wrapperProps = root.resolve("gradle/wrapper/gradle-wrapper.properties")
+            if (Files.exists(wrapperProps)) {
+                String content = new String(Files.readAllBytes(wrapperProps))
+                
+                Matcher matcher = Pattern.compile("gradle-(\\d+)\\.").matcher(content)
+                
+                if (matcher.find()) {
+                    int majorVersion = Integer.parseInt(matcher.group(1))
+                    
+                    if (majorVersion < 5) {
+                        return "8"
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Could not detect Gradle version, defaulting to Java 11")
+        }
+        
+        return "11"
+    }
+
     private static String getNodeSteps(boolean usesYarn) {
         if (usesYarn) {
             return """
@@ -162,7 +176,7 @@ ${buildSteps}
               with:
                 node-version: 16
                 cache: 'yarn'
-            - name: Install dependencies (Yarn)
+            - name: Install dependencies
               run: yarn install --frozen-lockfile --ignore-engines
             - name: Run Yarn Tests
               uses: nick-fields/retry@v3
@@ -177,15 +191,14 @@ ${buildSteps}
               uses: actions/setup-node@v3
               with:
                 node-version: 16
-                cache: 'npm'
-            - name: Install dependencies (NPM)
+            - name: Install dependencies
               run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
             - name: Run NPM Tests
               uses: nick-fields/retry@v3
               with:
                 timeout_minutes: 20
                 max_attempts: 3
-                command: npm test -- --passWithNoTests
+                command: npm test
             """
         }
     }
@@ -197,11 +210,9 @@ ${buildSteps}
               with:
                 go-version: '1.20'
                 cache: true
-            
             - name: Install Dependencies
               run: go mod download
-            
-            - name: Run Go Tests (Retry 3x)
+            - name: Run Go Tests
               uses: nick-fields/retry@v3
               with:
                 timeout_minutes: 20
@@ -218,11 +229,9 @@ ${buildSteps}
                 profile: minimal
                 toolchain: stable
                 override: true
-            
             - name: Build
               run: cargo build --verbose
-            
-            - name: Run Cargo Tests (Retry 3x)
+            - name: Run Cargo Tests
               uses: nick-fields/retry@v3
               with:
                 timeout_minutes: 25
