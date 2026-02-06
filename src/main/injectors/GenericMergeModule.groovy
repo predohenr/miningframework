@@ -36,7 +36,7 @@ class GenericMergeModule extends AbstractModule {
         dataCollectorBinder.addBinding().toInstance(new LazyCollector({
             def exts = getExtensions()
             
-            return new RunDataCollectorsInParallel([
+            return new RunDataCollectorsSequentially([
                 new MergirafMergeToolExecutorDataCollector(exts.file),
                 new MergirafSemiCMergeToolExecutorDataCollector(exts.file),
                 new MergirafSemiSCMergeToolExecutorDataCollector(exts.file),

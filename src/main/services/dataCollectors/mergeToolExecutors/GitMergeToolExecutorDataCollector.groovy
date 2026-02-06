@@ -1,48 +1,43 @@
 package services.dataCollectors.mergeToolExecutors
 
-import interfaces.DataCollector
-import project.MergeCommit
-import project.Project
-import services.dataCollectors.S3MMergesCollector.MergeScenarioCollector
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.Arrays
+import java.util.List
 
-class GitMergeToolExecutorDataCollector implements DataCollector {
-
-    private String extension
+class GitMergeToolExecutorDataCollector extends BaseMergeToolExecutorDataCollector {
 
     GitMergeToolExecutorDataCollector(String extension) {
-        this.extension = extension
+        super(extension)
     }
 
     @Override
-    void collectData(Project project, MergeCommit mergeCommit) {
-        List<Path> scenarios = MergeScenarioCollector.collectNonFastForwardMergeScenarios(project, mergeCommit)
+    protected List<String> getArgumentsForTool(Path file, Path outputFile) {
+        String basePath = file.resolve("base" + this.extension).toAbsolutePath().toString()
+        String rightPath = file.resolve("right" + this.extension).toAbsolutePath().toString()
+        
+        try {
+            Files.copy(
+                file.resolve("left" + this.extension), 
+                outputFile, 
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (Exception e) {
+            throw new RuntimeException("Falha ao preparar arquivo para o diff3: " + e.getMessage(), e)
+        }
 
-        scenarios.parallelStream().forEach({ Path scenario ->
-            try {
-                Path basePath = scenario.resolve("base" + extension)
-                Path leftPath = scenario.resolve("left" + extension)
-                Path rightPath = scenario.resolve("right" + extension)
-                Path outputPath = scenario.resolve("merge.diff3" + extension)
+        return Arrays.asList(
+                "git", 
+                "merge-file", 
+                outputFile.toAbsolutePath().toString(), 
+                basePath, 
+                rightPath
+        )
+    }
 
-                // merge is a copy of left for git merge-file to overwrite it
-                Files.copy(leftPath, outputPath, StandardCopyOption.REPLACE_EXISTING)
-
-                ProcessBuilder pb = new ProcessBuilder("git", "merge-file", 
-                    outputPath.toString(), 
-                    basePath.toString(), 
-                    rightPath.toString()
-                )
-                
-                pb.directory(scenario.toFile())
-                Process p = pb.start()
-                p.waitFor()
-
-            } catch (Exception e) {
-                e.printStackTrace()
-            }
-        })
+    @Override
+    String getToolName() {
+        return "diff3"
     }
 }
