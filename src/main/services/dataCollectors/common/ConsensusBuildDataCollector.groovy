@@ -41,10 +41,11 @@ class ConsensusBuildDataCollector implements DataCollector {
     private void analyzeAndTriggerBuilds(Project project, MergeCommit mergeCommit, Path scenarioDir) {
         Map<String, Boolean> conflictsMap = [:]
         Map<String, Path> toolPaths = [:]
+        String fileName = scenarioDir.getFileName().toString()
 
         for (String tool : tools) {
-            String fileName = "merge.${tool}${this.fileExtension}" 
-            Path toolOutput = scenarioDir.resolve(fileName)
+            String toolFileName = "merge.${tool}${this.fileExtension}" 
+            Path toolOutput = scenarioDir.resolve(toolFileName)
 
             if (Files.exists(toolOutput)) {
                 toolPaths[tool] = toolOutput
@@ -55,15 +56,18 @@ class ConsensusBuildDataCollector implements DataCollector {
         }
 
         boolean allConflict = conflictsMap.values().stream().allMatch({ it == true })
-        boolean noneConflict = conflictsMap.values().stream().allMatch({ it == false })
-
-        if (allConflict || noneConflict) {
-            String type = allConflict ? "ALL-CONFLICT" : "ALL-CLEAN"
-            LOG.info("SKIP BUILD [${type}]")
-            return 
+        if (allConflict) {
+            LOG.info("SKIP [ALL-CONFLICT]: All failed in '${fileName}'")
+            return
         }
-        
-        Path groundTruth = scenarioDir.resolve("merge${this.fileExtension}")
+
+        boolean noneConflict = conflictsMap.values().stream().allMatch({ it == false })
+        if (noneConflict) {
+            LOG.info("SKIP [ALL-CLEAN]: All solved in '${fileName}'")
+            return
+        }
+
+        Path groundTruth = scenarioDir.resolve("merge${this.fileExtension}") 
         boolean hasGroundTruth = Files.exists(groundTruth)
 
         toolPaths.each { tool, path ->
@@ -79,12 +83,15 @@ class ConsensusBuildDataCollector implements DataCollector {
                 }
 
                 if (differsFromHuman) {
-                    LOG.info("BUILD TRIGGER: Tool '${tool}'")
+                    LOG.info("BUILD TRIGGER: '${tool}' in '${fileName}'")
                     
                     new RequestBuildForRevisionWithFilesDataCollector(
                         "merge.${tool}${this.fileExtension}", 
                         this.cleanExtension
                     ).collectData(project, mergeCommit)
+
+                } else {
+                    LOG.info("SKIP [MATCH-GT]: '${tool}' in '${fileName}'")
                 }
             }
         }
