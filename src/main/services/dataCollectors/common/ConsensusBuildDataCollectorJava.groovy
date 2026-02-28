@@ -12,15 +12,15 @@ import services.util.MergeConflict
 import java.nio.file.Files
 import java.nio.file.Path
 
-class ConsensusBuildDataCollector implements DataCollector {
-    private static Logger LOG = LogManager.getLogger(ConsensusBuildDataCollector.class)
+class ConsensusBuildDataCollectorJava implements DataCollector {
+    private static Logger LOG = LogManager.getLogger(ConsensusBuildDataCollectorJava.class)
 
     private final String fileExtension
     private final String cleanExtension 
     
-    private final List<String> tools = ["mergiraf", "mergiraf_semi_c", "mergiraf_semi_sc", "diff3"]
+    private final List<String> tools = ["mergiraf", "mergiraf_semi_c", "mergiraf_semi_sc", "diff3", "s3m"]
 
-    ConsensusBuildDataCollector(String fileExtension, String cleanExtension) {
+    ConsensusBuildDataCollectorJava(String fileExtension, String cleanExtension) {
         this.fileExtension = fileExtension
         this.cleanExtension = cleanExtension
     }

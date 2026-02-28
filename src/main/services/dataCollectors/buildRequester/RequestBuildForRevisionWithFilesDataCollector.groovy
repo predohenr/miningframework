@@ -26,7 +26,7 @@ class RequestBuildForRevisionWithFilesDataCollector implements DataCollector {
     }
 
     @Override
-    void collectData(Project project, MergeCommit mergeCommit) {
+    synchronized void collectData(Project project, MergeCommit mergeCommit) {
         def branchName = "mining-framework-analysis_${project.getName()}_${mergeCommit.getSHA()}_${fileName}"
         
         LOG.debug("Attaching origin to project")
@@ -53,10 +53,10 @@ class RequestBuildForRevisionWithFilesDataCollector implements DataCollector {
         pushBranch(project, branchName)
     }
 
-    private copyFilesIntoRevision(Project project, MergeCommit mergeCommit) {
+    private synchronized copyFilesIntoRevision(Project project, MergeCommit mergeCommit) {
         def scenarioFiles = MergeScenarioCollector.collectNonFastForwardMergeScenarios(project, mergeCommit)
         
-        scenarioFiles.stream()
+        scenarioFiles.stream().sequential()
                 .filter(file -> {
                     if (Files.notExists(file.resolve(this.fileName))) {
                         LOG.debug("Skipping copy of file ${file.resolve(this.fileName).toAbsolutePath().toString()} because it does not exist in scenario")
