@@ -10,6 +10,8 @@ import interfaces.ProjectProcessor
 import project.Project
 import project.MergeCommit
 import services.commitFilters.MutuallyModifiedFilesCommitFilter
+import services.commitFilters.OldestBuildableCommitFilter
+import services.commitFilters.CompositeCommitFilter
 import services.dataCollectors.common.CompareScenarioMergeConflictsDataCollector
 import services.dataCollectors.common.ConsensusBuildDataCollector
 import services.dataCollectors.common.RunDataCollectorsInParallel
@@ -45,7 +47,7 @@ class GenericMergeModule extends AbstractModule {
 
         dataCollectorBinder.addBinding().toInstance(new LazyCollector({
             def exts = getExtensions()
-            return new RunDataCollectorsInParallel([
+            return new RunDataCollectorsSequentially([
                 new GenericTextNormalizerDataCollector("merge.mergiraf${exts.file}", "merge.mergiraf.format_normalized${exts.file}", exts.clean),
                 new GenericTextNormalizerDataCollector("merge.mergiraf_semi_c${exts.file}", "merge.mergiraf_semi_c.format_normalized${exts.file}", exts.clean),
                 new GenericTextNormalizerDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf_semi_sc.format_normalized${exts.file}", exts.clean),
@@ -56,36 +58,23 @@ class GenericMergeModule extends AbstractModule {
 
         dataCollectorBinder.addBinding().toInstance(new LazyCollector({
             def exts = getExtensions()
-            return new RunDataCollectorsInParallel([
-                // tools vs diff3
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
+            return new RunDataCollectorsSequentially([
+                // semi vs semi+
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.mergiraf_semi_c.format_normalized${exts.file}"),
                 
                 // semi vs structured
                 new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.mergiraf.format_normalized${exts.file}"),
                 new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.mergiraf.format_normalized${exts.file}"),
                 
-                // semi vs semi+
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.mergiraf_semi_c.format_normalized${exts.file}"),
+                // semi vs diff3
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
 
                 // tools vs repo merge
                 new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
                 new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
                 new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
                 new SyntacticallyCompareScenarioFilesDataCollector("merge.diff3.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
-
-                // conflicts tools vs diff3
-                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf${exts.file}", "merge.diff3${exts.file}"),
-                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_c${exts.file}", "merge.diff3${exts.file}"),
-                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.diff3${exts.file}"),
-
-                // conflicts semi vs structured
-                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_c${exts.file}", "merge.mergiraf${exts.file}"),
-                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf${exts.file}"),
-
-                // conflicts semi vs semi+
-                new CompareScenarioMergeConflictsDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf_semi_c${exts.file}")
             ])
         }))
 
@@ -98,7 +87,10 @@ class GenericMergeModule extends AbstractModule {
         Multibinder<OutputProcessor> outputProcessorBinder = Multibinder.newSetBinder(binder(), OutputProcessor.class)
         outputProcessorBinder.addBinding().to(EmptyOutputProcessor.class)
 
-        bind(CommitFilter.class).to(MutuallyModifiedFilesCommitFilter.class)
+        bind(CommitFilter.class).toInstance(new CompositeCommitFilter([
+            new OldestBuildableCommitFilter(),
+            new MutuallyModifiedFilesCommitFilter()
+        ]))
     }
 
     private static Map<String, String> getExtensions() {
