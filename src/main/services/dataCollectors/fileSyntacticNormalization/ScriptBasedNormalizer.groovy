@@ -9,7 +9,6 @@ class ScriptBasedNormalizer {
     private static final String SCRIPTS_DIR = "src/main/resources/normalizationScripts"
 
     static String normalize(String content, String extension) {
-        // --- MODO SIMPLIFICADO: Apenas remove todos os espaços em branco ---
         return simpleNormalize(content)
 
         // --- CÓDIGO ANTIGO (Preservado para futuro) ---
@@ -48,7 +47,7 @@ class ScriptBasedNormalizer {
 
     private static String simpleNormalize(String content) {
         if (content == null) return ""
-        // Regex \s+ pega espaços, tabs (\t), quebras de linha (\n, \r)
+        // regex \s+ removes spaces, tabs (\t), linebreakers (\n, \r)
         return content.replaceAll("\\s+", "")
     }
 

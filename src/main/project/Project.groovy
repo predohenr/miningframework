@@ -14,6 +14,7 @@ class Project {
     private String path
     private String url
     private boolean remote
+    private String firstBuildableSHA
     static private Pattern REMOTE_REPO_PATTERN = Pattern.compile("((http|https):\\/\\/)?.+.com\\/.+\\/.+")
 
     Project(String name, String path) {
@@ -128,6 +129,14 @@ class Project {
 
     void setPath(String path) {
         this.path = path
+    }
+
+    String getFirstBuildableSHA() {
+        return firstBuildableSHA
+    }
+
+    void setFirstBuildableSHA(String firstBuildableSHA) {
+        this.firstBuildableSHA = firstBuildableSHA
     }
 
     boolean isRemote() {

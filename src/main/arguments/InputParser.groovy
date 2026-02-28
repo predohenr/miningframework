@@ -22,10 +22,16 @@ class InputParser {
             if (lineMap.containsKey("name")) {
                 String name = line["name"]
 
-                projectList.add(new Project(name, path))
+                project = new Project(name, path)
             } else {
-                projectList.add(new Project(path))
+                project = new Project(path)
             }
+
+            if (lineMap.containsKey("first_buildable_sha")) {
+                project.setFirstBuildableSHA(line["first_buildable_sha"])
+            }
+
+            projectList.add(project)
         }
         if(projectList.size() == 0) throw new InvalidArgsException('The input file cannot be processed')
         return projectList
