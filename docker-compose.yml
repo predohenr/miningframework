@@ -15,13 +15,14 @@ services:
 
     command: 
       [
-        "-i", "injectors.MergirafSemiModule",
+        "-i", "injectors.GenericMergeModule",
         "-t", "1", 
         "-e", ".js",
         "-k",
         "-r", "42",
         "-m", "200",
-        "input/topProjectsJS.csv",
+        "-a", "GIT_ACCESS_TOKEN",
+        "input/mergeTools/test.csv",
         "mergeAnalysisOutput"
       ]
 
