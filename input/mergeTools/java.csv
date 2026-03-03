@@ -1,4 +1,4 @@
-repo,language,stars,url,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
+repo,language,stars,path,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
 abel533/Mapper,Java,7382,https://github.com/abel533/Mapper,SUCCESS,Maven,True,GitHub Actions,080ee59d0ac6f97b858a44e8decf59ce76a383d5,2025-10-07T05:31:05Z
 Activiti/Activiti,Java,10518,https://github.com/Activiti/Activiti,SUCCESS,Maven,True,GitHub Actions,09c89cbaebd6ca21d31d28fc8d47879a658b6c6d,2025-01-02T03:16:59Z
 AdoptOpenJDK/jitwatch,Java,3271,https://github.com/AdoptOpenJDK/jitwatch,FAILURE,Maven,True,GitHub Actions,3f3f528c50164ed45011938ea9802fdfa86aeb01,2025-10-30T02:48:37Z

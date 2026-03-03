@@ -1,4 +1,4 @@
-repo,language,stars,url,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
+repo,language,stars,path,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
 actix/actix-web,Rust,24306,https://github.com/actix/actix-web,SUCCESS,Cargo,True,GitHub Actions,0fafb486d4877df3d505ea6533765af499d99a5e,2025-01-06T08:08:33Z
 actix/actix,Rust,9138,https://github.com/actix/actix,SUCCESS,Cargo,True,GitHub Actions,07711c92e037523d7705b3208921f43cf63599f0,2025-02-03T18:58:35Z
 alacritty/alacritty,Rust,62362,https://github.com/alacritty/alacritty,SUCCESS,Cargo,True,GitHub Actions,62d5b134b3c32b6b691bb6aa6304e3d5d5c28c6d,2024-12-28T05:53:18Z

@@ -1,4 +1,4 @@
-repo,language,stars,url,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
+repo,language,stars,path,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
 0xAX/linux-insides,Python,32163,https://github.com/0xAX/linux-insides,NO_CI,Unknown,False,GitHub Actions,3504d5315fff9586401590cc2513e23ad9a87b1b,2025-04-13T15:42:57Z
 1adrianb/face-alignment,Python,7485,https://github.com/1adrianb/face-alignment,SUCCESS,Pip/Poetry,True,GitHub Actions,bacd0afb400a46ce4e94bf231624591495d932a2,2024-08-30T14:19:23Z
 python-websockets/websockets,Python,5630,https://github.com/python-websockets/websockets,FAILURE,Pip/Poetry,True,GitHub Actions,197b3ec2c7acf3a3804a94c0c02ed8e27051b0f0,2025-01-03T21:50:31Z

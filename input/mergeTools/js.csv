@@ -1,4 +1,4 @@
-repo,language,stars,url,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
+repo,language,stars,path,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
 11ty/eleventy,JavaScript,19353,https://github.com/11ty/eleventy,SUCCESS,NPM/Yarn,True,GitHub Actions,4e97e017714f97025409af437fe0d17694dc6bb6,2024-12-30T17:40:28Z
 2factorauth/twofactorauth,JavaScript,3446,https://github.com/2factorauth/twofactorauth,SUCCESS,NPM/Yarn,True,GitHub Actions,625d41b448fb2a28ba31bdd37b9e22892728a8e0,2024-12-30T00:29:01Z
 Chalarangelo/30-seconds-of-code,JavaScript,126740,https://github.com/Chalarangelo/30-seconds-of-code,SUCCESS,NPM/Yarn,True,GitHub Actions,ff7dc22e816d276a2991d3f1c31c838c07b6eb08,2024-12-30T13:49:08Z

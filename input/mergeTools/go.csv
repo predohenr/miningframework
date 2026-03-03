@@ -1,4 +1,4 @@
-repo,language,stars,url,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
+repo,language,stars,path,ci_status,build_tool,is_buildable,primary_ci,first_buildable_sha,first_buildable_date
 1backend/1backend,Go,2323,https://github.com/1backend/1backend,SUCCESS,Unknown,False,GitHub Actions,24e14ff46a9eed47535d919c11d8ed01d823c426,2025-03-22T20:29:52Z
 qax-os/excelize,Go,20283,https://github.com/qax-os/excelize,SUCCESS,GoModules,True,GitHub Actions,3f6ecffcca8968aa4bffe0ca0f3769159745bf3a,2024-12-29T04:30:28Z
 99designs/aws-vault,Go,8954,https://github.com/99designs/aws-vault,SUCCESS,GoModules,True,GitHub Actions,af7283ef69c5dc95862d2ceb391036651e7bbcc7,2025-12-30T11:23:11Z
