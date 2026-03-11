@@ -15,14 +15,12 @@ services:
 
     command: 
       [
-        "-i", "injectors.GenericMergeModule",
+        "-i", "injectors.SampleCollectionModule",
         "-t", "1", 
-        "-e", ".js",
-        "-k",
+        "-e", ".rs",
         "-r", "42",
-        "-m", "200",
-        "-a", "GIT_ACCESS_TOKEN",
-        "input/mergeTools/test.csv",
+        "-m", "1",
+        "input/mergeTools/rs.csv",
         "mergeAnalysisOutput"
       ]
 
