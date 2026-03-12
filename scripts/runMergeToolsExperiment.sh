@@ -1,27 +1,40 @@
 #!/bin/bash
 
+# Garante que estamos na raiz do projeto
 cd "$(dirname "$0")/.."
 
+# Carrega o token do GitHub
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 else
-  echo "Erro: Arquivo .env não encontrado na raiz do projeto!"
+  echo "Error: .env file not found!"
   exit 1
 fi
 
+echo "Mounting docker image"
+docker build -t phls2_mining-mergetools:latest .
+
+DOCKER_ARGS="--rm --cpuset-cpus=0-15 \
+  -v $(pwd)/input:/usr/src/miningframework/input \
+  -v $(pwd)/dependencies:/usr/src/miningframework/dependencies \
+  -v $(pwd)/mergeAnalysisOutput:/usr/src/miningframework/mergeAnalysisOutput \
+  -v $(pwd)/clonedRepositories:/usr/src/miningframework/clonedRepositories \
+  -v $(pwd)/output:/usr/src/miningframework/output \
+  phls2_mining-mergetools:latest"
+
 echo "Starting Java Mining..."
-docker-compose run --rm mining_worker -i injectors.GenericMergeModuleJava -t 4 -m 1 -e .java -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/java.csv mergeAnalysisOutput/java
+docker run $DOCKER_ARGS -i injectors.GenericMergeModuleJava -t 16 -k -e .java -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/java.csv mergeAnalysisOutput/java
 
 echo "Starting Rust Mining..."
-docker-compose run --rm mining_worker -i injectors.GenericMergeModule -t 4 -m 1 -e .rs -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/rs.csv mergeAnalysisOutput/rust
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .rs -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/rs.csv mergeAnalysisOutput/rust
 
 echo "Starting Python Mining..."
-docker-compose run --rm mining_worker -i injectors.GenericMergeModule -t 4 -m 1 -e .py -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/py.csv mergeAnalysisOutput/python
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .py -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/py.csv mergeAnalysisOutput/python
 
 echo "Starting Javascript Mining..."
-docker-compose run --rm mining_worker -i injectors.GenericMergeModule -t 4 -m 1 -e .js -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/js.csv mergeAnalysisOutput/js
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .js -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/js.csv mergeAnalysisOutput/js
 
 echo "Starting Go Mining..."
-docker-compose run --rm mining_worker -i injectors.GenericMergeModule -t 4 -m 1 -e .go -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/go.csv mergeAnalysisOutput/go
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .go -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/go.csv mergeAnalysisOutput/go
 
 echo "All experiments finished!"
