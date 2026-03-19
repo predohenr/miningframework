@@ -43,19 +43,19 @@ ${buildSteps}
         
         if (ext == "java") {
             if (Files.exists(root.resolve("pom.xml"))) {
-                return getMavenSteps()
+                return getMavenSteps(root)
             }
             if (Files.exists(root.resolve("build.gradle")) || Files.exists(root.resolve("build.gradle.kts"))) {
                 return getGradleSteps(root)
             }
             return """
             - name: Set up JDK 17
-              uses: actions/setup-java@v3
+              uses: actions/setup-java@v4
               with:
                 java-version: '17'
                 distribution: 'temurin'
             - name: Compile Java File
-              run: javac **/*.java
+              run: find . -name "*.java" | xargs javac
             """
         }
 
@@ -66,9 +66,9 @@ ${buildSteps}
             }
             return """
             - name: Set up Node.js
-              uses: actions/setup-node@v3
+              uses: actions/setup-node@v4
               with:
-                node-version: 16
+                node-version: 20
             - name: Run Node Check
               run: node --check ./**/*.js
             """
@@ -105,12 +105,14 @@ ${buildSteps}
         """
     }
 
-    private static String getMavenSteps() {
+    private static String getMavenSteps(Path root) {
+        String javaVersion = detectJavaVersionForMaven(root)
+        
         return """
-            - name: Set up JDK 11
-              uses: actions/setup-java@v3
+            - name: Set up JDK ${javaVersion}
+              uses: actions/setup-java@v4
               with:
-                java-version: '11'
+                java-version: '${javaVersion}'
                 distribution: 'temurin'
                 cache: maven
             - name: Run Maven Tests
@@ -122,19 +124,56 @@ ${buildSteps}
         """
     }
 
+    private static String detectJavaVersionForMaven(Path root) {
+        try {
+            Path pomPath = root.resolve("pom.xml")
+            if (Files.exists(pomPath)) {
+                String content = new String(Files.readAllBytes(pomPath))
+                
+                // Tenta encontrar a versão nas diferentes tags comuns do Maven
+                Matcher javaVersionMatcher = Pattern.compile("<java\\.version>(.+?)</java\\.version>").matcher(content)
+                if (javaVersionMatcher.find()) {
+                    return normalizeJavaVersion(javaVersionMatcher.group(1).trim())
+                }
+                
+                Matcher compilerTargetMatcher = Pattern.compile("<maven\\.compiler\\.target>(.+?)</maven\\.compiler\\.target>").matcher(content)
+                if (compilerTargetMatcher.find()) {
+                    return normalizeJavaVersion(compilerTargetMatcher.group(1).trim())
+                }
+                
+                Matcher compilerReleaseMatcher = Pattern.compile("<maven\\.compiler\\.release>(.+?)</maven\\.compiler\\.release>").matcher(content)
+                if (compilerReleaseMatcher.find()) {
+                    return normalizeJavaVersion(compilerReleaseMatcher.group(1).trim())
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Não foi possível detetar a versão do Java no Maven, a usar o Java 17 por defeito")
+        }
+        
+        return "17" // Fallback seguro
+    }
+
+    private static String normalizeJavaVersion(String version) {
+        // Converte "1.8" para "8" para manter a compatibilidade com a action do GitHub
+        if (version.startsWith("1.")) {
+            return version.substring(2)
+        }
+        return version
+    }
+
     private static String getGradleSteps(Path root) {
         String javaVersion = detectJavaVersionForGradle(root)
         
         return """
             - name: Set up JDK ${javaVersion}
-              uses: actions/setup-java@v3
+              uses: actions/setup-java@v4
               with:
                 java-version: '${javaVersion}'
                 distribution: 'temurin'
                 cache: gradle
             
             - name: Grant execute permission for gradlew
-              run: chmod +x gradlew
+              run: if [ -f "gradlew" ]; then chmod +x gradlew; fi
             
             - name: Run Gradle Tests
               uses: nick-fields/retry@v3
@@ -162,19 +201,19 @@ ${buildSteps}
                 }
             }
         } catch (Exception e) {
-            System.out.println("Could not detect Gradle version, defaulting to Java 11")
+            System.out.println("Não foi possível detetar a versão do Gradle, a usar o Java 17 por defeito")
         }
         
-        return "11"
+        return "17"
     }
 
     private static String getNodeSteps(boolean usesYarn) {
         if (usesYarn) {
             return """
             - name: Set up Node.js
-              uses: actions/setup-node@v3
+              uses: actions/setup-node@v4
               with:
-                node-version: 16
+                node-version: 20
                 cache: 'yarn'
             - name: Install dependencies
               run: yarn install --frozen-lockfile --ignore-engines
@@ -188,9 +227,9 @@ ${buildSteps}
         } else {
             return """
             - name: Set up Node.js
-              uses: actions/setup-node@v3
+              uses: actions/setup-node@v4
               with:
-                node-version: 16
+                node-version: 20
             - name: Install dependencies
               run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
             - name: Run NPM Tests
