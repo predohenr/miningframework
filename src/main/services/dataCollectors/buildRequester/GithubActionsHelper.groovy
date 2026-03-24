@@ -11,7 +11,7 @@ import java.util.regex.Pattern
 
 class GithubActionsHelper {
 
-    static void createGitHubActionsFile(Project project, String extension) {
+static void createGitHubActionsFile(Project project, String extension) {
         Path projectPath = Paths.get(project.getPath())
         String cleanExt = extension.replace(".", "").toLowerCase()
         String buildSteps = detectBuildSteps(projectPath, cleanExt)
@@ -28,8 +28,16 @@ ${buildSteps}
         """
 
         def githubActionsDirectory = projectPath.resolve(".github/workflows")
+        
         if (!Files.exists(githubActionsDirectory)) {
             Files.createDirectories(githubActionsDirectory)
+        } else {
+            Files.list(githubActionsDirectory).forEach { file ->
+                String fileName = file.getFileName().toString().toLowerCase()
+                if (fileName.endsWith(".yml") || fileName.endsWith(".yaml")) {
+                    Files.delete(file)
+                }
+            }
         }
         
         Files.write(githubActionsDirectory.resolve("mining_framework.yaml"), contents.getBytes(Charset.defaultCharset()),
@@ -55,7 +63,7 @@ ${buildSteps}
                 java-version: '17'
                 distribution: 'temurin'
             - name: Compile Java File
-              run: find . -name "*.java" | xargs javac
+              run: find . -type d -name ".git" -prune -o -name "*.java" -print | xargs javac
             """
         }
 
@@ -124,13 +132,12 @@ ${buildSteps}
         """
     }
 
-    private static String detectJavaVersionForMaven(Path root) {
+private static String detectJavaVersionForMaven(Path root) {
         try {
             Path pomPath = root.resolve("pom.xml")
             if (Files.exists(pomPath)) {
                 String content = new String(Files.readAllBytes(pomPath))
                 
-                // Tenta encontrar a versão nas diferentes tags comuns do Maven
                 Matcher javaVersionMatcher = Pattern.compile("<java\\.version>(.+?)</java\\.version>").matcher(content)
                 if (javaVersionMatcher.find()) {
                     return normalizeJavaVersion(javaVersionMatcher.group(1).trim())
@@ -147,14 +154,14 @@ ${buildSteps}
                 }
             }
         } catch (Exception e) {
-            System.out.println("Não foi possível detetar a versão do Java no Maven, a usar o Java 17 por defeito")
+            System.out.println("Can't detect Maven version, falling back to Java 11")
+            return "11"
         }
         
-        return "17" // Fallback seguro
+        return "11" 
     }
 
     private static String normalizeJavaVersion(String version) {
-        // Converte "1.8" para "8" para manter a compatibilidade com a action do GitHub
         if (version.startsWith("1.")) {
             return version.substring(2)
         }
@@ -184,12 +191,11 @@ ${buildSteps}
         """
     }
 
-    private static String detectJavaVersionForGradle(Path root) {
+private static String detectJavaVersionForGradle(Path root) {
         try {
             Path wrapperProps = root.resolve("gradle/wrapper/gradle-wrapper.properties")
             if (Files.exists(wrapperProps)) {
                 String content = new String(Files.readAllBytes(wrapperProps))
-                
                 Matcher matcher = Pattern.compile("gradle-(\\d+)\\.").matcher(content)
                 
                 if (matcher.find()) {
@@ -197,11 +203,16 @@ ${buildSteps}
                     
                     if (majorVersion < 5) {
                         return "8"
+                    } else if (majorVersion < 7) {
+                        return "11"
                     }
                 }
+            } else {
+                return "11" 
             }
         } catch (Exception e) {
-            System.out.println("Não foi possível detetar a versão do Gradle, a usar o Java 17 por defeito")
+            System.out.println("Can't detect Gradle version, using Java 11 by default")
+            return "11"
         }
         
         return "17"
@@ -260,14 +271,10 @@ ${buildSteps}
         """
     }
 
-    private static String getRustSteps() {
+private static String getRustSteps() {
         return """
-            - name: Set up Rust
-              uses: actions-rs/toolchain@v1
-              with:
-                profile: minimal
-                toolchain: stable
-                override: true
+            - name: Update Rust Toolchain
+              run: rustup update stable && rustup default stable
             - name: Build
               run: cargo build --verbose
             - name: Run Cargo Tests
