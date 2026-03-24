@@ -22,19 +22,19 @@ DOCKER_ARGS="--rm --cpuset-cpus=0-15 \
   -v $(pwd)/output:/usr/src/miningframework/output \
   phls2_mining-mergetools:latest"
 
-echo "Starting Java Mining..."
-docker run $DOCKER_ARGS -i injectors.GenericMergeModuleJava -t 16 -k -e .java -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/java.csv mergeAnalysisOutput/java
-
 echo "Starting Rust Mining..."
 docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .rs -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/rs.csv mergeAnalysisOutput/rust
-
-echo "Starting Python Mining..."
-docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .py -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/py.csv mergeAnalysisOutput/python
 
 echo "Starting Javascript Mining..."
 docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .js -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/js.csv mergeAnalysisOutput/js
 
 echo "Starting Go Mining..."
 docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .go -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/go.csv mergeAnalysisOutput/go
+
+echo "Starting Python Mining..."
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .py -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/py.csv mergeAnalysisOutput/python
+
+echo "Starting Java Mining..."
+docker run $DOCKER_ARGS -i injectors.GenericMergeModuleJava -t 16 -k -e .java -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/java.csv mergeAnalysisOutput/java
 
 echo "All experiments finished!"
