@@ -20,7 +20,7 @@ class S3MMergeToolExecutorDataCollector extends BaseMergeToolExecutorDataCollect
         Path baseFile = scenarioDirectory.resolve("base" + this.extension).toAbsolutePath()
         Path rightFile = scenarioDirectory.resolve("right" + this.extension).toAbsolutePath()
         
-        Path s3mJarPath = Paths.get("dependencies/s3m.jar").toAbsolutePath()
+        Path s3mJarPath = Paths.get("dependencies/s3m-all.jar").toAbsolutePath()
 
         return [
             "java", 
@@ -31,8 +31,7 @@ class S3MMergeToolExecutorDataCollector extends BaseMergeToolExecutorDataCollect
             rightFile.toString(),
             "-o", outputFile.toString(),
             "-c", "false", 
-            "-l", "false",
-            "-hmcrd", "true"
+            "-l", "false"
         ]
     }
 }
