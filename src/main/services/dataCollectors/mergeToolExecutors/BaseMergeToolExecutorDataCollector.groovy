@@ -92,6 +92,12 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
         processBuilder.command().addAll(getArgumentsForTool(file, outputFile))
 
         LOG.trace("Calling tool ${getToolName()} with command \"${processBuilder.command().join(' ')}\"")
+        
+        String toolName = getToolName().toLowerCase()
+        File logFile = file.resolve("log_${toolName}.log").toFile()
+        processBuilder.redirectErrorStream(true)
+        processBuilder.redirectOutput(logFile)
+        
         def process = ProcessRunner.startProcess(processBuilder)
         process.getInputStream().eachLine(LOG::trace)
         process.getErrorStream().eachLine(LOG::warn)
