@@ -11,7 +11,7 @@ import java.util.regex.Pattern
 
 class GithubActionsHelper {
 
-static void createGitHubActionsFile(Project project, String extension) {
+    static void createGitHubActionsFile(Project project, String extension) {
         Path projectPath = Paths.get(project.getPath())
         String cleanExt = extension.replace(".", "").toLowerCase()
         String buildSteps = detectBuildSteps(projectPath, cleanExt)
@@ -82,7 +82,7 @@ ${buildSteps}
             """
         }
         
-        if (ext == "go") return getGoSteps()
+        if (ext == "go") return getGoSteps(root)
         if (ext == "rs") return getRustSteps()
 
         return """
@@ -101,15 +101,24 @@ ${buildSteps}
             - name: Install dependencies
               run: |
                 python -m pip install --upgrade pip
-                pip install pytest
+                # Instalamos as 3 principais ferramentas de teste/orquestração (muito rápido)
+                pip install pytest nox tox
                 if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
                 if [ -f pyproject.toml ]; then pip install .; fi
             - name: Run Tests
               uses: nick-fields/retry@v3
               with:
-                timeout_minutes: 20
+                timeout_minutes: 30
                 max_attempts: 3
-                command: pytest || python -m unittest discover
+                # Lógica inteligente: usa o orquestrador correto se existir, senão usa pytest
+                command: |
+                  if [ -f noxfile.py ]; then 
+                    nox
+                  elif [ -f tox.ini ]; then 
+                    tox
+                  else 
+                    pytest || python -m unittest discover
+                  fi
         """
     }
 
@@ -132,26 +141,29 @@ ${buildSteps}
         """
     }
 
-private static String detectJavaVersionForMaven(Path root) {
+    private static String detectJavaVersionForMaven(Path root) {
         try {
             Path pomPath = root.resolve("pom.xml")
             if (Files.exists(pomPath)) {
                 String content = new String(Files.readAllBytes(pomPath))
                 
                 Matcher javaVersionMatcher = Pattern.compile("<java\\.version>(.+?)</java\\.version>").matcher(content)
-                if (javaVersionMatcher.find()) {
-                    return normalizeJavaVersion(javaVersionMatcher.group(1).trim())
-                }
+                if (javaVersionMatcher.find()) return normalizeJavaVersion(javaVersionMatcher.group(1).trim())
                 
                 Matcher compilerTargetMatcher = Pattern.compile("<maven\\.compiler\\.target>(.+?)</maven\\.compiler\\.target>").matcher(content)
-                if (compilerTargetMatcher.find()) {
-                    return normalizeJavaVersion(compilerTargetMatcher.group(1).trim())
-                }
+                if (compilerTargetMatcher.find()) return normalizeJavaVersion(compilerTargetMatcher.group(1).trim())
                 
                 Matcher compilerReleaseMatcher = Pattern.compile("<maven\\.compiler\\.release>(.+?)</maven\\.compiler\\.release>").matcher(content)
-                if (compilerReleaseMatcher.find()) {
-                    return normalizeJavaVersion(compilerReleaseMatcher.group(1).trim())
-                }
+                if (compilerReleaseMatcher.find()) return normalizeJavaVersion(compilerReleaseMatcher.group(1).trim())
+
+                Matcher pluginSourceMatcher = Pattern.compile("<source>(.+?)</source>").matcher(content)
+                if (pluginSourceMatcher.find()) return normalizeJavaVersion(pluginSourceMatcher.group(1).trim())
+
+                Matcher pluginTargetMatcher = Pattern.compile("<target>(.+?)</target>").matcher(content)
+                if (pluginTargetMatcher.find()) return normalizeJavaVersion(pluginTargetMatcher.group(1).trim())
+                
+                Matcher pluginReleaseTagMatcher = Pattern.compile("<release>(.+?)</release>").matcher(content)
+                if (pluginReleaseTagMatcher.find()) return normalizeJavaVersion(pluginReleaseTagMatcher.group(1).trim())
             }
         } catch (Exception e) {
             System.out.println("Can't detect Maven version, falling back to Java 11")
@@ -191,7 +203,7 @@ private static String detectJavaVersionForMaven(Path root) {
         """
     }
 
-private static String detectJavaVersionForGradle(Path root) {
+    private static String detectJavaVersionForGradle(Path root) {
         try {
             Path wrapperProps = root.resolve("gradle/wrapper/gradle-wrapper.properties")
             if (Files.exists(wrapperProps)) {
@@ -231,7 +243,7 @@ private static String detectJavaVersionForGradle(Path root) {
             - name: Run Yarn Tests
               uses: nick-fields/retry@v3
               with:
-                timeout_minutes: 20
+                timeout_minutes: 30
                 max_attempts: 3
                 command: yarn test
             """
@@ -246,32 +258,36 @@ private static String detectJavaVersionForGradle(Path root) {
             - name: Run NPM Tests
               uses: nick-fields/retry@v3
               with:
-                timeout_minutes: 20
+                timeout_minutes: 30
                 max_attempts: 3
                 command: npm test
             """
         }
     }
 
-    private static String getGoSteps() {
+    private static String getGoSteps(Path root) {
+        String goVersionConfig = Files.exists(root.resolve("go.mod")) 
+            ? "go-version-file: 'go.mod'" 
+            : "go-version: 'stable'"
+
         return """
             - name: Set up Go
-              uses: actions/setup-go@v4
+              uses: actions/setup-go@v5
               with:
-                go-version: '1.20'
+                ${goVersionConfig}
                 cache: true
             - name: Install Dependencies
               run: go mod download
             - name: Run Go Tests
               uses: nick-fields/retry@v3
               with:
-                timeout_minutes: 20
+                timeout_minutes: 30
                 max_attempts: 3
                 command: go test -v ./...
         """
     }
 
-private static String getRustSteps() {
+    private static String getRustSteps() {
         return """
             - name: Update Rust Toolchain
               run: rustup update stable && rustup default stable
@@ -280,7 +296,7 @@ private static String getRustSteps() {
             - name: Run Cargo Tests
               uses: nick-fields/retry@v3
               with:
-                timeout_minutes: 25
+                timeout_minutes: 30
                 max_attempts: 3
                 command: cargo test --verbose
         """

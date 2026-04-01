@@ -134,11 +134,17 @@ class RequestBuildForRevisionWithFilesDataCollector implements DataCollector {
     }
 
     static protected void commitChanges(Project project, String message) {
+        def forceAddAction = ProcessRunner.runProcess(project.getPath(), "git", "add", "-f", ".github/workflows/")
+        forceAddAction.getInputStream().eachLine(LOG::trace)
+        forceAddAction.getErrorStream().eachLine(LOG::warn)
+        forceAddAction.waitFor()
+
         def process = ProcessRunner.runProcess(project.getPath(), "git", "add", ".")
         process.getInputStream().eachLine(LOG::trace)
         process.getErrorStream().eachLine(LOG::warn)
         process.waitFor()
-        def commit = ProcessRunner.runProcess(project.getPath(), "git", "commit", "-a", "-m", "${message}")
+        
+        def commit = ProcessRunner.runProcess(project.getPath(), "git", "commit", "-m", "${message}")
         commit.getInputStream().eachLine(LOG::trace)
         commit.getErrorStream().eachLine(LOG::warn)
         commit.waitFor()
