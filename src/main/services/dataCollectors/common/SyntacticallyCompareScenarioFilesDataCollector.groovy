@@ -47,15 +47,25 @@ class SyntacticallyCompareScenarioFilesDataCollector implements DataCollector {
 
     protected synchronized static writeToReportFile(String reportFileName, List<String> lines) {
         def reportFile = new File(reportFileName)
-        Files.createDirectories(Paths.get(REPORT_DIRECTORY))
-        if(!reportFile.exists()) {
+        def parentDir = reportFile.getParentFile()
+
+        if (!parentDir.exists()) {
+            parentDir.mkdirs()
+        } 
+        if (!reportFile.exists()) {
             reportFile.createNewFile()
         }
+        
         reportFile << lines.stream().collect(CsvUtils.asLines()) << System.lineSeparator()
     }
 
     private String getReportFileName() {
-        return "${REPORT_DIRECTORY}/${_fileA.replace('.', "_")}-${_fileB.replace('.', "_")}.csv"
+        String languageFolder = "outros"
+        int lastDotIndex = _fileA.lastIndexOf('.')
+        if (lastDotIndex > 0 && lastDotIndex < _fileA.length() - 1) {
+            languageFolder = _fileA.substring(lastDotIndex + 1)
+        }
+        return "${REPORT_DIRECTORY}/${languageFolder}/${_fileA.replace('.', "_")}-${_fileB.replace('.', "_")}.csv"
     }
 
     private static boolean areFilesContentIdentical(Path pathA, Path pathB) {
