@@ -1,4 +1,5 @@
 #!/bin/bash
+#please run "docker build -t phls2_mining-mergetools:latest ." before executing this script
 
 cd "$(dirname "$0")/.."
 
@@ -8,9 +9,6 @@ else
   echo "Error: .env file not found!"
   exit 1
 fi
-
-echo "Mounting docker image"
-docker build -t phls2_mining-mergetools:latest .
 
 DOCKER_ARGS="--rm  \
   -v $(pwd)/input:/usr/src/miningframework/input \
