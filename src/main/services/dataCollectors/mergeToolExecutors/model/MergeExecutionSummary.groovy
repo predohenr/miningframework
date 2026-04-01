@@ -8,6 +8,7 @@ class MergeExecutionSummary {
     public final Path output
     public final MergeExecutionResult result
     public final long time
+    public Map<String, String> extraMetrics = [:]
 
     MergeExecutionSummary(Path file, Path output, MergeExecutionResult result, long time) {
         this.file = file

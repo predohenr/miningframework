@@ -43,7 +43,24 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
 
         def summaries = scenarioFiles.stream()
                 .map(this::runMergeForFile)
-                .map(summary -> [project.getName(), mergeCommit.getSHA(), summary.file, summary.output, summary.result, summary.time])
+                .map(summary -> [
+                        project.getName(), 
+                        mergeCommit.getSHA(), 
+                        summary.file, 
+                        summary.output, 
+                        summary.result, 
+                        summary.time,
+                        summary.extraMetrics.getOrDefault("phase1_time", ""),
+                        summary.extraMetrics.getOrDefault("phase2_time", ""),
+                        summary.extraMetrics.getOrDefault("phase2_unify_time", ""),
+                        summary.extraMetrics.getOrDefault("phase2_diffy_calls", ""),
+                        summary.extraMetrics.getOrDefault("phase2_diffy_time", ""),
+                        summary.extraMetrics.getOrDefault("phase3_time", ""),
+                        summary.extraMetrics.getOrDefault("phase3_unify_time", ""),
+                        summary.extraMetrics.getOrDefault("phase3_diffy_calls", ""),
+                        summary.extraMetrics.getOrDefault("phase3_diffy_time", ""),
+                        summary.extraMetrics.getOrDefault("total_merge_module_time", "")
+                ])
                 .map(CsvUtils::toCsvRepresentation)
                 .collect(Collectors.toList())
 
@@ -79,6 +96,10 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
 
         def summary = new MergeExecutionSummary(file, outputFilePath, result, averageTime)
 
+        String toolName = getToolName().toLowerCase()
+        File logFile = file.resolve("log_${toolName}.log").toFile()
+        summary.extraMetrics = parseLogMetrics(logFile)
+
         LOG.trace("Finished execution of tool ${getToolName()} in ${file}. Execution took ${summary.time}ns and finished with ${summary.result.toString()} status")
         return summary
     }
@@ -99,8 +120,6 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
         processBuilder.redirectOutput(logFile)
         
         def process = ProcessRunner.startProcess(processBuilder)
-        process.getInputStream().eachLine(LOG::trace)
-        process.getErrorStream().eachLine(LOG::warn)
         process.waitFor(TIMEOUT_IN_HOURS, TimeUnit.HOURS)
     }
 
@@ -111,6 +130,10 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
             return MergeExecutionResult.SUCCESS_WITH_CONFLICTS
         }
         return MergeExecutionResult.SUCCESS_WITHOUT_CONFLICTS
+    }
+
+    protected Map<String, String> parseLogMetrics(File logFile) {
+        return [:]
     }
 
     protected abstract List<String> getArgumentsForTool(Path file, Path outputFile);

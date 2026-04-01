@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# Garante que estamos na raiz do projeto
 cd "$(dirname "$0")/.."
 
-# Carrega o token do GitHub
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 else
