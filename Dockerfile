@@ -1,8 +1,9 @@
-FROM ubuntu:24.04 as build
+FROM eclipse-temurin:17-jdk-focal as build
 
-RUN apt-get update && \
-    apt-get install -y openjdk-17-jdk git curl nano && \
-    apt-get clean;
+RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y git curl nano && \
+    apt-get clean
 
 WORKDIR /usr/src/miningframework
 
@@ -10,11 +11,12 @@ COPY . .
 
 RUN ./gradlew installDist
 
-FROM ubuntu:24.04
+FROM eclipse-temurin:17-jre-focal
 
-RUN apt-get update && \
-    apt-get install -y openjdk-17-jre git procps && \
-    apt-get clean;
+RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y git procps && \
+    apt-get clean
 
 WORKDIR /usr/src/miningframework
 
