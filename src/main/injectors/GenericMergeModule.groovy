@@ -49,8 +49,8 @@ class GenericMergeModule extends AbstractModule {
             def exts = getExtensions()
             return new RunDataCollectorsSequentially([
                 new GenericTextNormalizerDataCollector("merge.mergiraf${exts.file}", "merge.mergiraf.format_normalized${exts.file}", exts.clean),
-                new GenericTextNormalizerDataCollector("merge.mergiraf_semi_c${exts.file}", "merge.mergiraf_semi_c.format_normalized${exts.file}", exts.clean),
-                new GenericTextNormalizerDataCollector("merge.mergiraf_semi_sc${exts.file}", "merge.mergiraf_semi_sc.format_normalized${exts.file}", exts.clean),
+                new GenericTextNormalizerDataCollector("merge.mergiraf_semi${exts.file}", "merge.mergiraf_semi.format_normalized${exts.file}", exts.clean),
+                new GenericTextNormalizerDataCollector("merge.mergiraf_semi_plus${exts.file}", "merge.mergiraf_semi_plus.format_normalized${exts.file}", exts.clean),
                 new GenericTextNormalizerDataCollector("merge.diff3${exts.file}", "merge.diff3.format_normalized${exts.file}", exts.clean),
                 new GenericTextNormalizerDataCollector("merge${exts.file}", "merge.format_normalized${exts.file}", exts.clean)
             ])
@@ -60,20 +60,20 @@ class GenericMergeModule extends AbstractModule {
             def exts = getExtensions()
             return new RunDataCollectorsSequentially([
                 // semi vs semi+
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.mergiraf_semi_c.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_plus.format_normalized${exts.file}", "merge.mergiraf_semi.format_normalized${exts.file}"),
                 
                 // semi vs structured
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.mergiraf.format_normalized${exts.file}"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.mergiraf.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi.format_normalized${exts.file}", "merge.mergiraf.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_plus.format_normalized${exts.file}", "merge.mergiraf.format_normalized${exts.file}"),
                 
                 // semi vs diff3
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_plus.format_normalized${exts.file}", "merge.diff3.format_normalized${exts.file}"),
 
                 // tools vs repo merge
                 new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_c.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
-                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_sc.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
+                new SyntacticallyCompareScenarioFilesDataCollector("merge.mergiraf_semi_plus.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
                 new SyntacticallyCompareScenarioFilesDataCollector("merge.diff3.format_normalized${exts.file}", "merge.format_normalized${exts.file}"),
             ])
         }))

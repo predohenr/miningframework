@@ -19,7 +19,7 @@ class ConsensusBuildDataCollectorJava implements DataCollector {
     private final String fileExtension
     private final String cleanExtension 
     
-    private final List<String> tools = ["mergiraf", "mergiraf_semi_c", "mergiraf_semi_sc", "diff3", "s3m"]
+    private final List<String> tools = ["mergiraf", "mergiraf_semi", "mergiraf_semi_plus", "diff3", "s3m"]
 
     ConsensusBuildDataCollectorJava(String fileExtension, String cleanExtension) {
         this.fileExtension = fileExtension
