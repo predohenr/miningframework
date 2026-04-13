@@ -23,8 +23,8 @@ import static app.MiningFramework.arguments
 abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
     private static Logger LOG = LogManager.getLogger(BaseMergeToolExecutorDataCollector.class)
 
-    protected static PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS = 1
-    protected static TIMEOUT_IN_HOURS = 1
+    protected static PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS = 6
+    protected static TIMEOUT_IN_MINUTES = 30
     
     protected final String extension
 
@@ -79,11 +79,22 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
         List<Long> executionTimes = new ArrayList<>()
         def outputFilePath = file.resolve("merge." + getToolName().toLowerCase() + this.extension)
 
+        boolean toolTimedOut = false
+        
         for (int i = 0; i < PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS; i++) {
             LOG.trace("Starting execution ${i + 1} of ${PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS}")
             long startTime = System.nanoTime()
-            executeTool(file, outputFilePath)
+
+            boolean success = executeTool(file, outputFilePath)
+
             long endTime = System.nanoTime()
+
+            if (!success) {
+                LOG.warn("Tool ${getToolName()} timed out during execution ${i + 1}. Aborting remaining runs for this file.")
+                toolTimedOut = true
+                break
+            }
+
             LOG.trace("Finished execution ${i + 1} of ${PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS} IN ${endTime - startTime} ns")
             // If we're running more than one execution, we use the first one as a warm up
             if (PERF_SAMPLING_TOTAL_NUMBER_OF_EXECUTIONS == 1 || i > 0) {
@@ -91,8 +102,18 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
             }
         }
 
-        def result = decideResult(outputFilePath)
-        long averageTime = (long) (executionTimes.stream().reduce(0, (prev, cur) -> prev + cur) / executionTimes.size())
+        MergeExecutionResult result
+        long averageTime = 0L
+
+        if (toolTimedOut) {
+            result = MergeExecutionResult.TIMEOUT
+        } else {
+            result = decideResult(outputFilePath)
+
+            if (!executionTimes.isEmpty()){
+                averageTime = (long) (executionTimes.stream().reduce(0L, (prev, cur) -> prev + cur) / executionTimes.size())
+            }
+        }
 
         def summary = new MergeExecutionSummary(file, outputFilePath, result, averageTime)
 
@@ -108,7 +129,7 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
         return System.getProperty("user.dir")
     }
 
-    private void executeTool(Path file, Path outputFile) {
+    private boolean executeTool(Path file, Path outputFile) {
         def processBuilder = ProcessRunner.buildProcess(getExecutionDirectory())
         processBuilder.command().addAll(getArgumentsForTool(file, outputFile))
 
@@ -120,7 +141,15 @@ abstract class BaseMergeToolExecutorDataCollector implements DataCollector {
         processBuilder.redirectOutput(logFile)
         
         def process = ProcessRunner.startProcess(processBuilder)
-        process.waitFor(TIMEOUT_IN_HOURS, TimeUnit.HOURS)
+        boolean finishedInTime = process.waitFor(TIMEOUT_IN_MINUTES, TimeUnit.MINUTES)
+        
+        if (!finishedInTime) {
+            process.destroyForcibly()
+            LOG.warn("TIMEOUT EXCEEDED: Killed zombie process for ${getToolName()} to free RAM.")
+            return false
+        }
+
+        return true
     }
 
     private static MergeExecutionResult decideResult(Path outputFile) {
