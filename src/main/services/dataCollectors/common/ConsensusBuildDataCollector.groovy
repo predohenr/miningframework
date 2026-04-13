@@ -9,6 +9,8 @@ import project.MergeCommit
 import project.Project
 import services.dataCollectors.S3MMergesCollector.MergeScenarioCollector
 import services.dataCollectors.buildRequester.RequestBuildForRevisionWithFilesDataCollector
+import services.dataCollectors.buildRequester.RequestBuildForRevisionDataCollector
+
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
@@ -33,6 +35,8 @@ class ConsensusBuildDataCollector implements DataCollector {
         if (scenarios == null || scenarios.isEmpty()) {
             return
         }
+
+        boolean parentsBuilt = false
 
         for (String tool : tools) {
             boolean isCleanGlobally = true
@@ -65,6 +69,19 @@ class ConsensusBuildDataCollector implements DataCollector {
 
             if (isCleanGlobally) {
                 if (differsFromHumanGlobally) {
+                    if (!parentsBuilt) {
+                        LOG.info("BUILD TRIGGER: Requesting builds for parents of merge ${mergeCommit.getSHA()}.")
+                        
+                        for (String parentSha : mergeCommit.getParentsSHA()) {
+                            LOG.info("BUILD TRIGGER: Requesting build for parent commit ${parentSha}.")
+                            
+                            new RequestBuildForRevisionDataCollector(this.cleanExtension)
+                                .collectData(project, parentSha)
+                        }
+                        
+                        parentsBuilt = true
+                    }
+
                     LOG.info("BUILD TRIGGER: '${tool}' passed in commit ${mergeCommit.getSHA()}.")
                     
                     new RequestBuildForRevisionWithFilesDataCollector(
