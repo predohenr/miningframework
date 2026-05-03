@@ -10,7 +10,7 @@ else
   exit 1
 fi
 
-DOCKER_ARGS="--rm --cpuset-cpus=0-15 \
+DOCKER_ARGS="--rm --cpuset-cpus=0-2 \
   -v $(pwd)/input:/usr/src/miningframework/input \
   -v $(pwd)/dependencies:/usr/src/miningframework/dependencies \
   -v $(pwd)/mergeAnalysisOutput:/usr/src/miningframework/mergeAnalysisOutput \
@@ -19,18 +19,18 @@ DOCKER_ARGS="--rm --cpuset-cpus=0-15 \
   phls2_mining-mergetools:latest"
 
 echo "Starting Rust Mining..."
-docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .rs -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/rs.csv mergeAnalysisOutput/rust
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 3 -e .rs -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/rs.csv mergeAnalysisOutput/rust
 
 echo "Starting Javascript Mining..."
-docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .js -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/js.csv mergeAnalysisOutput/js
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 3 -e .js -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/js.csv mergeAnalysisOutput/js
 
 echo "Starting Go Mining..."
-docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .go -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/go.csv mergeAnalysisOutput/go
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 3 -e .go -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/go.csv mergeAnalysisOutput/go
 
 echo "Starting Python Mining..."
-docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 16 -k -e .py -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/py.csv mergeAnalysisOutput/python
+docker run $DOCKER_ARGS -i injectors.GenericMergeModule -t 3 -e .py -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/py.csv mergeAnalysisOutput/python
 
 echo "Starting Java Mining..."
-docker run $DOCKER_ARGS -i injectors.GenericMergeModuleJava -t 16 -k -e .java -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/java.csv mergeAnalysisOutput/java
+docker run $DOCKER_ARGS -i injectors.GenericMergeModuleJava -t 3 -e .java -a "${GITHUB_TOKEN}" input/mergeTools/filtered_repos/java.csv mergeAnalysisOutput/java
 
 echo "All experiments finished!"
