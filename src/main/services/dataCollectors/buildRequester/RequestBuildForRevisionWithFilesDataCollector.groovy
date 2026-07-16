@@ -27,6 +27,16 @@ class RequestBuildForRevisionWithFilesDataCollector implements DataCollector {
 
     @Override
     synchronized void collectData(Project project, MergeCommit mergeCommit) {
+        if (!arguments.providedAnalysisRepo()) {
+            LOG.warn("Skipping build analysis push: No analysis repository provided via --analysis-repo")
+            return 
+        }
+    
+        if (!arguments.providedAccessKey()) {
+            LOG.warn("Skipping build analysis push: No access key provided, which is required for pushing to the analysis repo")
+            return
+        }
+
         def branchName = "mining-framework-analysis_${project.getName()}_${mergeCommit.getSHA()}_${fileName}"
         
         LOG.debug("Attaching origin to project")
@@ -93,7 +103,8 @@ class RequestBuildForRevisionWithFilesDataCollector implements DataCollector {
 
     static private void attachOrigin(Project project) {
         def token = arguments.getAccessKey()
-        def origin = "https://${token}@github.com/predohenr/mining-framework-analysis"
+        def repoPath = arguments.getAnalysisRepo()
+        def origin = "https://${token}@github.com/${repoPath}"
         def process = ProcessRunner.runProcess(project.getPath(), 'git', 'remote', 'add', 'analysis', origin)
         process.getInputStream().eachLine(LOG::trace)
         process.getErrorStream().eachLine(LOG::warn)

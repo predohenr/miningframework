@@ -21,6 +21,7 @@ class Arguments {
     private String syntacticSeparators
     private String fileExtension
     private Level logLevel
+    private String analysisRepo
 
     Arguments() { // set the default values for all parameters
         randomSeed = 1
@@ -37,6 +38,7 @@ class Arguments {
         syntacticSeparators = '{ } ( ) ; ,'
         fileExtension = '.java'
         logLevel = Level.INFO
+        analysisRepo = ''
     }
 
     void setRandomSeed(int randomSeed) {
@@ -166,5 +168,17 @@ class Arguments {
     void setLogLevel(Level logLevel) {
         this.logLevel = logLevel
         Configurator.setRootLevel(logLevel)
+    }
+
+    void setAnalysisRepo(String analysisRepo) {
+        this.analysisRepo = analysisRepo
+    }
+
+    String getAnalysisRepo() {
+        return analysisRepo
+    }
+
+    boolean providedAnalysisRepo() {
+        return analysisRepo != null && analysisRepo.length() > 0
     }
 }
