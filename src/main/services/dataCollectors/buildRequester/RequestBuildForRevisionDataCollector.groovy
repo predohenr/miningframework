@@ -41,7 +41,7 @@ class RequestBuildForRevisionDataCollector {
 
     static private void attachOrigin(Project project) {
         def token = arguments.getAccessKey()
-        def origin = "https://${token}@github.com/predohenr/mining-framework-analysis"
+        def origin = "https://${token.trim()}@github.com/predohenr/mining-framework-analysis"
         def process = ProcessRunner.runProcess(project.getPath(), 'git', 'remote', 'add', 'analysis', origin)
         process.waitFor()
     }
