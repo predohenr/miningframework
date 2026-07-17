@@ -104,7 +104,7 @@ class RequestBuildForRevisionWithFilesDataCollector implements DataCollector {
     static private void attachOrigin(Project project) {
         def token = arguments.getAccessKey()
         def repoPath = arguments.getAnalysisRepo()
-        def origin = "https://${token}@github.com/${repoPath}"
+        def origin = "https://${token.trim()}@github.com/${repoPath.trim()}"
         def process = ProcessRunner.runProcess(project.getPath(), 'git', 'remote', 'add', 'analysis', origin)
         process.getInputStream().eachLine(LOG::trace)
         process.getErrorStream().eachLine(LOG::warn)
@@ -112,11 +112,11 @@ class RequestBuildForRevisionWithFilesDataCollector implements DataCollector {
     }
 
     static private void setupCredentials(Project project) {
-        def configEmail = ProcessRunner.runProcess(project.getPath(), 'git', 'config', 'user.email', '"predohnr@gmail.com"')
+        def configEmail = ProcessRunner.runProcess(project.getPath(), 'git', 'config', 'user.email', '"miningworker@gmail.com"')
         configEmail.getInputStream().eachLine(LOG::trace)
         configEmail.getErrorStream().eachLine(LOG::warn)
         configEmail.waitFor()
-        def configName = ProcessRunner.runProcess(project.getPath(), 'git', 'config', 'user.name', '"Pedro Henrique"')
+        def configName = ProcessRunner.runProcess(project.getPath(), 'git', 'config', 'user.name', '"Mining Worker"')
         configName.getInputStream().eachLine(LOG::trace)
         configName.getErrorStream().eachLine(LOG::warn)
         configName.waitFor()

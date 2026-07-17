@@ -16,6 +16,16 @@ class RequestBuildForRevisionDataCollector {
     }
 
     synchronized void collectData(Project project, String sha) {
+        if (!arguments.providedAnalysisRepo()) {
+            LOG.warn("Skipping build analysis push: No analysis repository provided via --analysis-repo")
+            return 
+        }
+    
+        if (!arguments.providedAccessKey()) {
+            LOG.warn("Skipping build analysis push: No access key provided, which is required for pushing to the analysis repo")
+            return
+        }
+
         def branchName = "mining-framework-analysis_${project.getName()}_${sha}_parent_build"
         
         LOG.debug("Attaching origin to project")
@@ -41,32 +51,62 @@ class RequestBuildForRevisionDataCollector {
 
     static private void attachOrigin(Project project) {
         def token = arguments.getAccessKey()
-        def origin = "https://${token.trim()}@github.com/predohenr/mining-framework-analysis"
+        def repoPath = arguments.getAnalysisRepo()       
+        def origin = "https://${token.trim()}@github.com/${repoPath.trim()}"
         def process = ProcessRunner.runProcess(project.getPath(), 'git', 'remote', 'add', 'analysis', origin)
+        process.getInputStream().eachLine(LOG::trace)
+        process.getErrorStream().eachLine(LOG::warn)
         process.waitFor()
     }
 
     static private void setupCredentials(Project project) {
-        ProcessRunner.runProcess(project.getPath(), 'git', 'config', 'user.email', '"predohnr@gmail.com"').waitFor()
-        ProcessRunner.runProcess(project.getPath(), 'git', 'config', 'user.name', '"Pedro Henrique"').waitFor()
+        def configEmail = ProcessRunner.runProcess(project.getPath(), 'git', 'config', 'user.email', '"miningworker@gmail.com"')
+        configEmail.getInputStream().eachLine(LOG::trace)
+        configEmail.getErrorStream().eachLine(LOG::warn)
+        configEmail.waitFor()
+        
+        def configName = ProcessRunner.runProcess(project.getPath(), 'git', 'config', 'user.name', '"Mining Worker"')
+        configName.getInputStream().eachLine(LOG::trace)
+        configName.getErrorStream().eachLine(LOG::warn)
+        configName.waitFor()
     }
 
     static private void deleteBranch(Project project, String branchName) {
-        ProcessRunner.runProcess(project.getPath(), 'git', 'branch', '-D', branchName).waitFor()
+        def process = ProcessRunner.runProcess(project.getPath(), 'git', 'branch', '-D', branchName)
+        process.getInputStream().eachLine(LOG::trace)
+        process.getErrorStream().eachLine(LOG::warn)
+        process.waitFor()
     }
 
     static private void checkoutCommitAndCreateBranch(Project project, String branchName, String commitSha) {
         ProcessRunner.runProcess(project.getPath(), 'git', 'checkout', '-f', commitSha).waitFor()
-        ProcessRunner.runProcess(project.getPath(), 'git', 'checkout', '-b', branchName).waitFor()
+        def process = ProcessRunner.runProcess(project.getPath(), 'git', 'checkout', '-b', branchName)
+        process.getInputStream().eachLine(LOG::trace)
+        process.getErrorStream().eachLine(LOG::warn)
+        process.waitFor()
     }
 
     static private void pushBranch(Project project, String branchName) {
-        ProcessRunner.runProcess(project.getPath(), 'git', 'push', 'analysis', branchName, "-f").waitFor()
+        def process = ProcessRunner.runProcess(project.getPath(), 'git', 'push', 'analysis', branchName, "-f")
+        process.getInputStream().eachLine(LOG::trace)
+        process.getErrorStream().eachLine(LOG::warn)
+        process.waitFor()
     }
 
     static protected void commitChanges(Project project, String message) {
-        ProcessRunner.runProcess(project.getPath(), "git", "add", "-f", ".github/workflows/").waitFor()
-        ProcessRunner.runProcess(project.getPath(), "git", "add", "-A").waitFor() // Atualizado para -A por garantia
-        ProcessRunner.runProcess(project.getPath(), "git", "commit", "-m", "${message}").waitFor()
+        def forceAddAction = ProcessRunner.runProcess(project.getPath(), "git", "add", "-f", ".github/workflows/")
+        forceAddAction.getInputStream().eachLine(LOG::trace)
+        forceAddAction.getErrorStream().eachLine(LOG::warn)
+        forceAddAction.waitFor()
+
+        def process = ProcessRunner.runProcess(project.getPath(), "git", "add", "-A")
+        process.getInputStream().eachLine(LOG::trace)
+        process.getErrorStream().eachLine(LOG::warn)
+        process.waitFor()
+        
+        def commit = ProcessRunner.runProcess(project.getPath(), "git", "commit", "-m", "${message}")
+        commit.getInputStream().eachLine(LOG::trace)
+        commit.getErrorStream().eachLine(LOG::warn)
+        commit.waitFor()
     }
 }
