@@ -11,11 +11,11 @@ else
 fi
 
 DOCKER_ARGS="--rm --cpuset-cpus=0-2 \
-  -v $(pwd)/input:/usr/src/miningframework/input \
-  -v $(pwd)/dependencies:/usr/src/miningframework/dependencies \
-  -v $(pwd)/mergeAnalysisOutput:/usr/src/miningframework/mergeAnalysisOutput \
-  -v $(pwd)/clonedRepositories:/usr/src/miningframework/clonedRepositories \
-  -v $(pwd)/output:/usr/src/miningframework/output \
+  -v $(pwd)/input:/opt/miningframework/input \
+  -v $(pwd)/dependencies:/opt/miningframework/dependencies \
+  -v $(pwd)/mergeAnalysisOutput:/opt/miningframework/mergeAnalysisOutput \
+  -v $(pwd)/clonedRepositories:/opt/miningframework/clonedRepositories \
+  -v $(pwd)/output:/opt/miningframework/output \
   phls2_mining-mergetools:latest"
 
 echo "Starting Rust Mining..."

@@ -122,16 +122,31 @@ ${buildSteps}
         """
     }
 
-    private static String getMavenSteps(Path root) {
-        String javaVersion = detectJavaVersionForMaven(root)
-        
+    private static final List<Integer> INSTALLED_JDKS = [8, 11, 17, 21, 25]
+    private static final int DEFAULT_JDK = 17
+    private static final String GRADLE_TOOLCHAINS_FROM_ENV =
+            INSTALLED_JDKS.collect { "JAVA_HOME_${it}_X64" }.join(",")
+
+    private static String getJavaSetupSteps(int jdk, String cache) {
+        List<Integer> order = INSTALLED_JDKS.findAll { it != jdk } + [jdk]
+        String versions = order.collect { "                  ${it}" }.join("\n")
         return """
-            - name: Set up JDK ${javaVersion}
+            - name: Set up JDK ${jdk}
               uses: actions/setup-java@v4
               with:
-                java-version: '${javaVersion}'
                 distribution: 'temurin'
-                cache: maven
+                cache: ${cache}
+                java-version: |
+${versions}
+            - name: Remove settings.xml created by setup-java
+              run: rm -f ~/.m2/settings.xml
+"""
+    }
+
+    private static String getMavenSteps(Path root) {
+        int jdk = detectJavaVersionForMaven(root)
+
+        return getJavaSetupSteps(jdk, "maven") + """
             - name: Run Maven Tests
               uses: nick-fields/retry@v3
               with:
@@ -141,93 +156,169 @@ ${buildSteps}
         """
     }
 
-    private static String detectJavaVersionForMaven(Path root) {
+    static int detectJavaVersionForMaven(Path root) {
         try {
-            Path pomPath = root.resolve("pom.xml")
-            if (Files.exists(pomPath)) {
-                String content = new String(Files.readAllBytes(pomPath))
-                
-                Matcher javaVersionMatcher = Pattern.compile("<java\\.version>(.+?)</java\\.version>").matcher(content)
-                if (javaVersionMatcher.find()) return normalizeJavaVersion(javaVersionMatcher.group(1).trim())
-                
-                Matcher compilerTargetMatcher = Pattern.compile("<maven\\.compiler\\.target>(.+?)</maven\\.compiler\\.target>").matcher(content)
-                if (compilerTargetMatcher.find()) return normalizeJavaVersion(compilerTargetMatcher.group(1).trim())
-                
-                Matcher compilerReleaseMatcher = Pattern.compile("<maven\\.compiler\\.release>(.+?)</maven\\.compiler\\.release>").matcher(content)
-                if (compilerReleaseMatcher.find()) return normalizeJavaVersion(compilerReleaseMatcher.group(1).trim())
+            String pom = new String(Files.readAllBytes(root.resolve("pom.xml")), Charset.forName("UTF-8"))
+            pom = pom.replaceAll(/(?s)<!--.*?-->/, "")
+            Map<String, String> props = mavenProperties(pom)
 
-                Matcher pluginSourceMatcher = Pattern.compile("<source>(.+?)</source>").matcher(content)
-                if (pluginSourceMatcher.find()) return normalizeJavaVersion(pluginSourceMatcher.group(1).trim())
-
-                Matcher pluginTargetMatcher = Pattern.compile("<target>(.+?)</target>").matcher(content)
-                if (pluginTargetMatcher.find()) return normalizeJavaVersion(pluginTargetMatcher.group(1).trim())
-                
-                Matcher pluginReleaseTagMatcher = Pattern.compile("<release>(.+?)</release>").matcher(content)
-                if (pluginReleaseTagMatcher.find()) return normalizeJavaVersion(pluginReleaseTagMatcher.group(1).trim())
+            List<String> candidates = []
+            ["maven.compiler.release", "maven.compiler.source", "maven.compiler.target",
+             "java.version", "java.release", "jdk.version", "javaVersion", "java.level"].each { key ->
+                if (props.containsKey(key)) candidates << props[key]
             }
+            String compilerConfig = mavenCompilerPluginConfiguration(pom)
+            if (compilerConfig != null) {
+                ["release", "source", "target"].each { tag ->
+                    Matcher m = Pattern.compile("<${tag}>\\s*([^<]+?)\\s*</${tag}>").matcher(compilerConfig)
+                    if (m.find()) candidates << m.group(1)
+                }
+            }
+
+            Integer declared = null
+            for (String c : candidates) {
+                declared = parseJavaMajor(resolveMavenProperties(c, props))
+                if (declared != null) break
+            }
+
+            Integer enforcerMin = null
+            Matcher enforcer = Pattern.compile("(?s)<requireJavaVersion>.*?<version>\\s*([^<]+?)\\s*</version>").matcher(pom)
+            if (enforcer.find()) {
+                Matcher low = Pattern.compile("^[\\[(]?\\s*([^,\\])]+)").matcher(resolveMavenProperties(enforcer.group(1), props))
+                if (low.find()) enforcerMin = parseJavaMajor(low.group(1))
+            }
+
+            int wanted = [declared, enforcerMin, detectJavaVersionFromVersionFiles(root)]
+                    .findAll { it != null }.max() ?: DEFAULT_JDK
+            return smallestInstalledJdkAtLeast(wanted)
         } catch (Exception e) {
-            System.out.println("Can't detect Maven version, falling back to Java 11")
-            return "11"
+            System.out.println("Can't detect the Java version of the Maven project, using Java ${DEFAULT_JDK}: ${e.message}")
+            return DEFAULT_JDK
         }
-        
-        return "11" 
     }
 
-    private static String normalizeJavaVersion(String version) {
-        if (version.startsWith("1.")) {
-            return version.substring(2)
+    private static Map<String, String> mavenProperties(String pom) {
+        Map<String, String> props = [:]
+        Matcher block = Pattern.compile("(?s)<properties>(.*?)</properties>").matcher(pom)
+        while (block.find()) {
+            Matcher p = Pattern.compile("<([A-Za-z0-9_.\\-]+)>\\s*([^<]*?)\\s*</\\1>").matcher(block.group(1))
+            while (p.find()) props.putIfAbsent(p.group(1), p.group(2))
         }
-        return version
+        return props
+    }
+
+    private static String resolveMavenProperties(String value, Map<String, String> props) {
+        String v = value
+        for (int i = 0; i < 5 && v != null && v.contains('${'); i++) {
+            v = v.replaceAll(/\$\{([^}]+)\}/) { String all, String name -> props.containsKey(name) ? props[name] : all }
+        }
+        return v
+    }
+
+    /** Text of every maven-compiler-plugin declaration (pluginManagement and plugins), or null. */
+    private static String mavenCompilerPluginConfiguration(String pom) {
+        StringBuilder blocks = new StringBuilder()
+        int idx = pom.indexOf("<artifactId>maven-compiler-plugin</artifactId>")
+        while (idx >= 0) {
+            int end = pom.indexOf("</plugin>", idx)
+            blocks.append(end < 0 ? pom.substring(idx) : pom.substring(idx, end)).append("\n")
+            idx = pom.indexOf("<artifactId>maven-compiler-plugin</artifactId>", idx + 1)
+        }
+        return blocks.length() == 0 ? null : blocks.toString()
+    }
+
+    /** "1.8" -> 8, "17" -> 17, "21.0.2-tem" -> 21; anything else (e.g. "${x}", "src/test") -> null */
+    static Integer parseJavaMajor(String raw) {
+        if (raw == null) return null
+        Matcher m = Pattern.compile("^(?:1\\.)?(\\d{1,2})(?:[.\\-+_].*)?\$").matcher(raw.trim())
+        if (!m.matches()) return null
+        int major = Integer.parseInt(m.group(1))
+        return (major >= 5 && major <= 40) ? major : null
+    }
+
+    private static Integer detectJavaVersionFromVersionFiles(Path root) {
+        try {
+            Path javaVersion = root.resolve(".java-version")
+            if (Files.exists(javaVersion)) {
+                Integer v = parseJavaMajor(new String(Files.readAllBytes(javaVersion)).trim())
+                if (v != null) return v
+            }
+            Path sdkmanrc = root.resolve(".sdkmanrc")
+            if (Files.exists(sdkmanrc)) {
+                Matcher m = Pattern.compile("(?m)^\\s*java\\s*=\\s*(\\S+)").matcher(new String(Files.readAllBytes(sdkmanrc)))
+                if (m.find()) return parseJavaMajor(m.group(1))
+            }
+            Path toolVersions = root.resolve(".tool-versions")
+            if (Files.exists(toolVersions)) {
+                Matcher m = Pattern.compile("(?m)^\\s*java\\s+(?:[A-Za-z]+-)?(\\S+)").matcher(new String(Files.readAllBytes(toolVersions)))
+                if (m.find()) return parseJavaMajor(m.group(1))
+            }
+        } catch (Exception ignored) { }
+        return null
+    }
+
+    private static int smallestInstalledJdkAtLeast(int version) {
+        return INSTALLED_JDKS.find { it >= version } ?: INSTALLED_JDKS.max()
     }
 
     private static String getGradleSteps(Path root) {
-        String javaVersion = detectJavaVersionForGradle(root)
-        
-        return """
-            - name: Set up JDK ${javaVersion}
-              uses: actions/setup-java@v4
-              with:
-                java-version: '${javaVersion}'
-                distribution: 'temurin'
-                cache: gradle
-            
+        String gradleVersion = detectGradleWrapperVersion(root)
+        int jdk = detectJavaVersionForGradle(gradleVersion)
+        boolean hasWrapper = Files.exists(root.resolve("gradlew"))
+        String gradle = hasWrapper ? "./gradlew" : "gradle"
+        int gradleMajor = gradleVersion == null ? 99 : Integer.parseInt(gradleVersion.tokenize(".")[0])
+        // --no-build-cache: a corrupted remote build cache (e.g. Develocity) must not fail the build.
+        // The toolchain property lets Gradle find every installed JDK for projects declaring toolchains.
+        String options = (gradleMajor >= 4 ? " --no-build-cache" : "") +
+                (gradleMajor >= 6 ? " -Porg.gradle.java.installations.fromEnv=${GRADLE_TOOLCHAINS_FROM_ENV}" : "")
+
+        return getJavaSetupSteps(jdk, "gradle") + """
             - name: Grant execute permission for gradlew
               run: if [ -f "gradlew" ]; then chmod +x gradlew; fi
-            
+
             - name: Run Gradle Tests
               uses: nick-fields/retry@v3
               with:
                 timeout_minutes: 30
                 max_attempts: 3
-                command: ./gradlew test
+                command: ${gradle} test${options}
         """
     }
 
-    private static String detectJavaVersionForGradle(Path root) {
+    static String detectGradleWrapperVersion(Path root) {
         try {
             Path wrapperProps = root.resolve("gradle/wrapper/gradle-wrapper.properties")
-            if (Files.exists(wrapperProps)) {
-                String content = new String(Files.readAllBytes(wrapperProps))
-                Matcher matcher = Pattern.compile("gradle-(\\d+)\\.").matcher(content)
-                
-                if (matcher.find()) {
-                    int majorVersion = Integer.parseInt(matcher.group(1))
-                    
-                    if (majorVersion < 5) {
-                        return "8"
-                    } else if (majorVersion < 7) {
-                        return "11"
-                    }
-                }
-            } else {
-                return "11" 
-            }
-        } catch (Exception e) {
-            System.out.println("Can't detect Gradle version, using Java 11 by default")
-            return "11"
+            if (!Files.exists(wrapperProps)) return null
+            Matcher m = Pattern.compile("gradle-(\\d+\\.\\d+(?:\\.\\d+)?)").matcher(new String(Files.readAllBytes(wrapperProps)))
+            return m.find() ? m.group(1) : null
+        } catch (Exception ignored) {
+            return null
         }
-        
-        return "17"
+    }
+
+    static int detectJavaVersionForGradle(String gradleVersion) {
+        if (gradleVersion == null) return DEFAULT_JDK
+        List<Integer> parts = gradleVersion.tokenize(".").collect { Integer.parseInt(it) }
+        int major = parts[0], minor = parts.size() > 1 ? parts[1] : 0
+        int v = major * 100 + minor
+        int maxJava
+        if (v >= 901) maxJava = 25
+        else if (v >= 814) maxJava = 24
+        else if (v >= 810) maxJava = 23
+        else if (v >= 808) maxJava = 22
+        else if (v >= 805) maxJava = 21
+        else if (v >= 803) maxJava = 20
+        else if (v >= 706) maxJava = 19
+        else if (v >= 705) maxJava = 18
+        else if (v >= 703) maxJava = 17
+        else if (v >= 700) maxJava = 16
+        else if (v >= 607) maxJava = 15
+        else if (v >= 603) maxJava = 14
+        else if (v >= 600) maxJava = 13
+        else if (v >= 504) maxJava = 12
+        else if (v >= 500) maxJava = 11
+        else maxJava = 8
+        return INSTALLED_JDKS.findAll { it <= maxJava }.max()
     }
 
     private static String getNodeSteps(boolean usesYarn) {

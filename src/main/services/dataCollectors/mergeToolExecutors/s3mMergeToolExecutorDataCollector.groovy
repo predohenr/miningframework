@@ -24,6 +24,8 @@ class S3MMergeToolExecutorDataCollector extends BaseMergeToolExecutorDataCollect
 
         return [
             "java", 
+            "-Xmx4g",
+            "-Duser.home=" + scenarioDirectory.toAbsolutePath().toString(),
             "-jar", 
             s3mJarPath.toString(),
             leftFile.toString(),

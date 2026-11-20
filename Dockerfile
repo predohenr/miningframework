@@ -18,7 +18,7 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get install -y git procps && \
     apt-get clean
 
-WORKDIR /usr/src/miningframework
+WORKDIR /opt/miningframework
 
 COPY --from=build /usr/src/miningframework/build/install/miningframework /usr/local/framework
 COPY --from=build /usr/src/miningframework/dependencies /usr/local/framework/dependencies
