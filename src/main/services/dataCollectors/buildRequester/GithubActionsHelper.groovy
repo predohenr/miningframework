@@ -1,5 +1,6 @@
 package services.dataCollectors.buildRequester
 
+import groovy.json.JsonSlurper
 import project.Project
 import java.nio.charset.Charset
 import java.nio.file.Files
@@ -24,6 +25,8 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
+            - name: Fetch git submodules
+              run: git submodule update --init --recursive || echo "Could not fetch some submodules"
 ${buildSteps}
         """
 
@@ -47,7 +50,7 @@ ${buildSteps}
     }
 
     private static String detectBuildSteps(Path root, String ext) {    
-        if (ext == "py") return getPythonSteps()
+        if (ext == "py") return getPythonSteps(root)
         
         if (ext == "java") {
             if (Files.exists(root.resolve("pom.xml"))) {
@@ -70,7 +73,7 @@ ${buildSteps}
         if (ext == "js" || ext == "ts" || ext == "jsx" || ext == "tsx") {
             if (Files.exists(root.resolve("package.json"))) {
                 boolean usesYarn = Files.exists(root.resolve("yarn.lock"))
-                return getNodeSteps(usesYarn)
+                return getNodeSteps(usesYarn, detectNodeVersion(root))
             }
             return """
             - name: Set up Node.js
@@ -82,7 +85,7 @@ ${buildSteps}
             """
         }
         
-        if (ext == "go") return getGoSteps(root)
+        if (ext == "go") return getGoSteps()
         if (ext == "rs") return getRustSteps()
 
         return """
@@ -91,35 +94,167 @@ ${buildSteps}
         """
     }
 
-    private static String getPythonSteps() {
+    private static final List<Integer> PYTHON_MINORS = (8..15).toList()
+    private static final int DEFAULT_PYTHON_MINOR = 10
+
+    private static String getPythonSteps(Path root) {
+        String python = "3.${detectPythonMinor(root)}"
         return """
-            - name: Set up Python
-              uses: actions/setup-python@v4
+            - name: Set up Python ${python}
+              uses: actions/setup-python@v5
               with:
-                python-version: '3.10'
-                cache: 'pip'
+                python-version: '${python}'
             - name: Install dependencies
               run: |
                 python -m pip install --upgrade pip
-                # Instalamos as 3 principais ferramentas de teste/orquestração (muito rápido)
-                pip install pytest nox tox
-                if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-                if [ -f pyproject.toml ]; then pip install .; fi
+                pip install pytest
+                if [ -f requirements.txt ]; then pip install -r requirements.txt || true; fi
+                for f in requirements-dev.txt dev-requirements.txt requirements-test.txt test-requirements.txt requirements/test.txt requirements/dev.txt; do
+                  if [ -f "\$f" ]; then pip install -r "\$f" || true; fi
+                done
+                if [ -f pyproject.toml ] || [ -f setup.py ]; then
+                  pip install -e ".[test,tests,testing,dev]" || pip install -e ".[test,tests,testing]" || pip install -e . || pip install . || true
+                fi
             - name: Run Tests
               uses: nick-fields/retry@v3
               with:
                 timeout_minutes: 30
                 max_attempts: 3
-                # Lógica inteligente: usa o orquestrador correto se existir, senão usa pytest
+                shell: bash
                 command: |
-                  if [ -f noxfile.py ]; then 
-                    nox
-                  elif [ -f tox.ini ]; then 
-                    tox
-                  else 
-                    pytest || python -m unittest discover
+                  status=0
+                  python -m pytest || status=\$?
+                  if [ \$status -eq 5 ]; then
+                    python -m unittest discover -v 2>&1 | tee unittest.log
+                    status=\${PIPESTATUS[0]}
+                    if grep -q "^Ran 0 tests" unittest.log; then echo "NO TESTS RAN"; exit 1; fi
                   fi
+                  exit \$status
         """
+    }
+
+    static int detectPythonMinor(Path root) {
+        try {
+            Path pythonVersion = root.resolve(".python-version")
+            if (Files.exists(pythonVersion)) {
+                Matcher m = Pattern.compile("(?m)^\\s*(?:pypy)?3\\.(\\d+)").matcher(readText(pythonVersion))
+                if (m.find()) {
+                    int minor = Integer.parseInt(m.group(1))
+                    return Math.min(Math.max(minor, PYTHON_MINORS.min()), PYTHON_MINORS.max())
+                }
+            }
+            String spec = declaredPythonRequirement(root)
+            if (spec != null) {
+                List<Integer> allowed = PYTHON_MINORS.findAll { satisfiesRange(spec, [3, it, 0], [3, it, 999], false) }
+                Integer chosen = preferredVersion(allowed, DEFAULT_PYTHON_MINOR)
+                if (chosen != null) return chosen
+            }
+        } catch (Exception e) {
+            System.out.println("Can't detect the Python version, using 3.${DEFAULT_PYTHON_MINOR}: ${e.message}")
+        }
+        return DEFAULT_PYTHON_MINOR
+    }
+
+    static String declaredPythonRequirement(Path root) {
+        Path pyproject = root.resolve("pyproject.toml")
+        if (Files.exists(pyproject)) {
+            String text = readText(pyproject)
+            Matcher m = Pattern.compile("(?m)^\\s*requires-python\\s*=\\s*[\"']([^\"']+)[\"']").matcher(text)
+            if (m.find()) return m.group(1)
+            Matcher poetry = Pattern.compile("(?ms)^\\s*\\[tool\\.poetry\\.dependencies\\]\\s*\$(.*?)(?:^\\s*\\[|\\z)").matcher(text)
+            if (poetry.find()) {
+                Matcher p = Pattern.compile("(?m)^\\s*python\\s*=\\s*[\"']([^\"']+)[\"']").matcher(poetry.group(1))
+                if (p.find()) return p.group(1)
+            }
+        }
+        Path setupCfg = root.resolve("setup.cfg")
+        if (Files.exists(setupCfg)) {
+            Matcher m = Pattern.compile("(?m)^\\s*python_requires\\s*=\\s*[\"']?([^\"'\\r\\n#]+)").matcher(readText(setupCfg))
+            if (m.find()) return m.group(1).trim()
+        }
+        Path setupPy = root.resolve("setup.py")
+        if (Files.exists(setupPy)) {
+            Matcher m = Pattern.compile("python_requires\\s*=\\s*[\"']([^\"']+)[\"']").matcher(readText(setupPy))
+            if (m.find()) return m.group(1)
+        }
+        return null
+    }
+
+    private static Integer preferredVersion(List<Integer> allowed, int preferred) {
+        if (allowed.isEmpty()) return null
+        if (allowed.contains(preferred)) return preferred
+        List<Integer> newer = allowed.findAll { it > preferred }
+        return newer ? newer.min() : allowed.max()
+    }
+
+    static boolean satisfiesRange(String spec, List<Integer> low, List<Integer> high, boolean npm) {
+        String s = spec.trim()
+        if (s.isEmpty() || s == "*" || s.equalsIgnoreCase("x")) return true
+        return s.split("\\|\\|").any { String alternative ->
+            String set = alternative.trim()
+                    .replaceAll(/(\S+)\s+-\s+(\S+)/, '>=$1 <=$2')
+                    .replaceAll(/(~=|===|==|!=|<=|>=|<|>|=|\^|~)\s+/, '$1')
+            set.split(/[,\s]+/).findAll { !it.isEmpty() }.every { satisfiesClause(it, low, high, npm) }
+        }
+    }
+
+    private static boolean satisfiesClause(String clause, List<Integer> low, List<Integer> high, boolean npm) {
+        Matcher m = Pattern.compile("^(~=|===|==|!=|<=|>=|<|>|=|\\^|~)?v?(\\d+(?:\\.(?:\\d+|\\*|x|X))*)\$").matcher(clause)
+        if (!m.matches()) return true
+        String op = m.group(1) ?: "="
+        List<String> raw = m.group(2).tokenize(".")
+        List<Integer> parts = []
+        for (String p : raw) {
+            if (!(p ==~ /\d+/)) break
+            parts << Integer.parseInt(p)
+        }
+        boolean wildcard = parts.size() < raw.size()
+        List<Integer> floor = padVersion(parts, 0)
+        List<Integer> ceiling = padVersion(parts, 999)
+        switch (op) {
+            case ">=":
+                return compareVersions(high, floor) >= 0
+            case ">":
+                return compareVersions(high, npm || wildcard ? ceiling : floor) > 0
+            case "<=":
+                return compareVersions(low, ceiling) <= 0
+            case "<":
+                return compareVersions(low, floor) < 0
+            case "!=":
+                return wildcard ? !(compareVersions(floor, low) <= 0 && compareVersions(high, ceiling) <= 0) : true
+            case "~=":
+                if (parts.size() < 2) return true
+                List<Integer> prefix = parts.subList(0, parts.size() - 1)
+                return compareVersions(high, floor) >= 0 && compareVersions(low, padVersion(prefix, 999)) <= 0
+            case "^":
+                int i = parts.findIndexOf { it != 0 }
+                if (i < 0) i = parts.size() - 1
+                List<Integer> upper = parts.subList(0, i) + [parts[i] + 1]
+                return compareVersions(high, floor) >= 0 && compareVersions(low, padVersion(upper, 0)) < 0
+            case "~":
+                List<Integer> next = parts.size() >= 2 ? [parts[0], parts[1] + 1] : [parts[0] + 1]
+                return compareVersions(high, floor) >= 0 && compareVersions(low, padVersion(next, 0)) < 0
+            default:
+                return compareVersions(low, ceiling) <= 0 && compareVersions(high, floor) >= 0
+        }
+    }
+
+    private static List<Integer> padVersion(List<Integer> parts, int filler) {
+        List<Integer> v = new ArrayList<>(parts.size() > 3 ? parts.subList(0, 3) : parts)
+        while (v.size() < 3) v << filler
+        return v
+    }
+
+    private static int compareVersions(List<Integer> a, List<Integer> b) {
+        for (int i = 0; i < 3; i++) {
+            int c = a[i] <=> b[i]
+            if (c != 0) return c
+        }
+        return 0
+    }
+
+    private static String readText(Path file) {
+        return new String(Files.readAllBytes(file), Charset.forName("UTF-8"))
     }
 
     private static final List<Integer> INSTALLED_JDKS = [8, 11, 17, 21, 25]
@@ -321,13 +456,55 @@ ${versions}
         return INSTALLED_JDKS.findAll { it <= maxJava }.max()
     }
 
-    private static String getNodeSteps(boolean usesYarn) {
+    private static final List<Integer> NODE_MAJORS = (10..26).toList()
+    private static final int DEFAULT_NODE = 20
+    private static final Map<String, Integer> NODE_LTS_CODENAMES = [argon: 4, boron: 6, carbon: 8, dubnium: 10, erbium: 12,
+                                                                    fermium: 14, gallium: 16, hydrogen: 18, iron: 20, jod: 22, krypton: 24]
+
+    static String detectNodeVersion(Path root) {
+        try {
+            for (String file : [".nvmrc", ".node-version"]) {
+                Path versionFile = root.resolve(file)
+                if (Files.exists(versionFile)) {
+                    String v = nodeVersionFromFile(readText(versionFile))
+                    if (v != null) return v
+                }
+            }
+            def engines = new JsonSlurper().parseText(readText(root.resolve("package.json")))?.engines
+            if (engines instanceof Map && engines.node instanceof String) {
+                String spec = engines.node
+                List<Integer> allowed = NODE_MAJORS.findAll { satisfiesRange(spec, [it, 0, 0], [it, 999, 999], true) }
+                Integer chosen = preferredVersion(allowed.findAll { it % 2 == 0 }, DEFAULT_NODE) ?: preferredVersion(allowed, DEFAULT_NODE)
+                if (chosen != null) return chosen.toString()
+            }
+        } catch (Exception e) {
+            System.out.println("Can't detect the Node.js version, using ${DEFAULT_NODE}: ${e.message}")
+        }
+        return DEFAULT_NODE.toString()
+    }
+
+    static String nodeVersionFromFile(String text) {
+        String line = text.readLines().collect { it.replaceAll(/#.*/, "").trim() }.find { !it.isEmpty() }
+        if (line == null) return null
+        Matcher number = Pattern.compile("^v?(\\d+)(?:\\.(\\d+))?").matcher(line)
+        if (number.find()) {
+            return number.group(1) == "0" && number.group(2) != null ? "0.${number.group(2)}" : number.group(1)
+        }
+        Matcher lts = Pattern.compile("(?i)^lts/(.+)\$").matcher(line)
+        if (lts.find()) {
+            Integer major = NODE_LTS_CODENAMES[lts.group(1).toLowerCase()]
+            return major != null ? major.toString() : "lts/*"
+        }
+        return line.toLowerCase() in ["node", "latest", "stable", "current"] ? "node" : null
+    }
+
+    private static String getNodeSteps(boolean usesYarn, String nodeVersion) {
         if (usesYarn) {
             return """
-            - name: Set up Node.js
+            - name: Set up Node.js ${nodeVersion}
               uses: actions/setup-node@v4
               with:
-                node-version: 20
+                node-version: '${nodeVersion}'
                 cache: 'yarn'
             - name: Install dependencies
               run: yarn install --frozen-lockfile --ignore-engines
@@ -340,10 +517,10 @@ ${versions}
             """
         } else {
             return """
-            - name: Set up Node.js
+            - name: Set up Node.js ${nodeVersion}
               uses: actions/setup-node@v4
               with:
-                node-version: 20
+                node-version: '${nodeVersion}'
             - name: Install dependencies
               run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
             - name: Run NPM Tests
@@ -356,25 +533,21 @@ ${versions}
         }
     }
 
-    private static String getGoSteps(Path root) {
-        String goVersionConfig = Files.exists(root.resolve("go.mod")) 
-            ? "go-version-file: 'go.mod'" 
-            : "go-version: 'stable'"
-
+    private static String getGoSteps() {
         return """
             - name: Set up Go
               uses: actions/setup-go@v5
               with:
-                ${goVersionConfig}
+                go-version: 'stable'
                 cache: true
             - name: Install Dependencies
-              run: go mod download
+              run: if [ -f go.mod ]; then go mod download; fi
             - name: Run Go Tests
               uses: nick-fields/retry@v3
               with:
                 timeout_minutes: 30
                 max_attempts: 3
-                command: go test -v ./...
+                command: go test -vet=off ./...
         """
     }
 
